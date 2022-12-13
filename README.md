@@ -1,1 +1,3 @@
-# dropkick: punt your dropshot into the cloud
+# dropkick: punt your dropshot service into the cloud
+
+wip
