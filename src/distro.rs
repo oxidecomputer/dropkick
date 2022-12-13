@@ -4,10 +4,11 @@ use pgp::packet::PacketParser;
 use pgp::Signature;
 use reqwest::Url;
 use sha2::{Digest, Sha256};
-use std::fs::File;
-use std::io::{Cursor, Read, Write};
+use std::io::Cursor;
 use std::path::PathBuf;
 use tempfile::NamedTempFile;
+use tokio::fs::File;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Debug)]
 pub struct ImageContext {}
@@ -17,7 +18,7 @@ pub struct ImageContext {}
 /// For now, this uses Ubuntu 22.04, but should eventually allow you to use a different version (or
 /// perhaps different distro altogether).
 pub async fn create_image() -> Result<ImageContext> {
-    fetch_ubuntu(None).await?;
+    let image_path = fetch_ubuntu(None).await?;
     todo!();
 }
 
@@ -71,11 +72,11 @@ async fn fetch_ubuntu(serial: Option<&str>) -> Result<PathBuf> {
         arch = arch,
         serial = serial
     ));
-    if let Ok(mut file) = File::open(&cache_path) {
+    if let Ok(mut file) = File::open(&cache_path).await {
         let mut hasher = Sha256::new();
         let mut buf = [0; 8192];
         loop {
-            let n = file.read(&mut buf)?;
+            let n = file.read(&mut buf).await?;
             if n > 0 {
                 hasher.update(&buf[..n]);
             } else {
@@ -90,17 +91,18 @@ async fn fetch_ubuntu(serial: Option<&str>) -> Result<PathBuf> {
     }
 
     let mut response = reqwest::get(base_url.join(&filename)?).await?;
-    let mut file = NamedTempFile::new_in(&cache_dir)?;
+    let (file, temp_path) = NamedTempFile::new_in(&cache_dir)?.into_parts();
+    let mut file = File::from_std(file);
     let mut hasher = Sha256::new();
     while let Some(chunk) = response.chunk().await? {
         hasher.update(&chunk);
-        file.write_all(&chunk)?;
+        file.write_all(&chunk).await?;
     }
     ensure!(
         hex::encode(hasher.finalize()) == checksum,
         "invalid checksum for downloaded image"
     );
-    file.persist(&cache_path)?;
+    temp_path.persist(&cache_path)?;
     Ok(cache_path)
 }
 
