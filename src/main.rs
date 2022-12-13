@@ -13,7 +13,7 @@ struct Options {
 
 #[derive(Debug, Parser)]
 enum Command {
-    Kick { output_file: PathBuf },
+    Build { output_file: PathBuf },
 }
 
 async fn run() -> Result<()> {
@@ -28,7 +28,7 @@ async fn run() -> Result<()> {
 
     let options = Options::parse();
     match options.command {
-        Command::Kick { output_file } => {
+        Command::Build { output_file } => {
             let context = ImageContext::new(output_file).await?;
             context.finish()?;
             Ok(())
