@@ -2,7 +2,7 @@ use pgp::SignedPublicKey;
 use std::io::Cursor;
 
 lazy_static::lazy_static! {
-    pub static ref UBUNTU: SignedPublicKey = read_armored_key(include_str!("ubuntu.asc"));
+    pub(crate) static ref UBUNTU: SignedPublicKey = read_armored_key(include_str!("ubuntu.asc"));
 }
 
 #[cfg(test)]

@@ -1,6 +1,9 @@
 use anyhow::Result;
 use clap::Parser;
+use dropkick::ImageContext;
+use std::path::PathBuf;
 use std::process::{ExitCode, Termination};
+use tracing_subscriber::{prelude::*, EnvFilter};
 
 #[derive(Debug, Parser)]
 struct Options {
@@ -10,14 +13,24 @@ struct Options {
 
 #[derive(Debug, Parser)]
 enum Command {
-    Kick {},
+    Kick { output_file: PathBuf },
 }
 
 async fn run() -> Result<()> {
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(
+            EnvFilter::builder()
+                .with_default_directive("dropkick=info".parse()?)
+                .from_env()?,
+        )
+        .init();
+
     let options = Options::parse();
     match options.command {
-        Command::Kick {} => {
-            dropkick::distro::create_image().await?;
+        Command::Kick { output_file } => {
+            let context = ImageContext::new(output_file).await?;
+            context.finish()?;
             Ok(())
         }
     }

@@ -1,3 +1,4 @@
+use crate::command::ExitStatusExt;
 use anyhow::{ensure, Context, Result};
 use pgp::armor::Dearmor;
 use pgp::packet::PacketParser;
@@ -5,24 +6,13 @@ use pgp::Signature;
 use reqwest::Url;
 use sha2::{Digest, Sha256};
 use std::io::Cursor;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tempfile::NamedTempFile;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::process::Command;
 
-#[derive(Debug)]
-pub struct ImageContext {}
-
-/// Download, verify, and unpack a disk image, creating a context to perform operations in.
-///
-/// For now, this uses Ubuntu 22.04, but should eventually allow you to use a different version (or
-/// perhaps different distro altogether).
-pub async fn create_image() -> Result<ImageContext> {
-    let image_path = fetch_ubuntu(None).await?;
-    todo!();
-}
-
-async fn fetch_ubuntu(serial: Option<&str>) -> Result<PathBuf> {
+pub(crate) async fn fetch_ubuntu(serial: Option<&str>, output_file: &Path) -> Result<()> {
     // to make it easier to customize later...
     let version = "jammy";
     let arch = "amd64";
@@ -72,38 +62,55 @@ async fn fetch_ubuntu(serial: Option<&str>) -> Result<PathBuf> {
         arch = arch,
         serial = serial
     ));
-    if let Ok(mut file) = File::open(&cache_path).await {
-        let mut hasher = Sha256::new();
-        let mut buf = [0; 8192];
-        loop {
-            let n = file.read(&mut buf).await?;
-            if n > 0 {
-                hasher.update(&buf[..n]);
+    let download_needed = match File::open(&cache_path).await {
+        Ok(mut file) => {
+            let mut hasher = Sha256::new();
+            let mut buf = [0; 8192];
+            loop {
+                let n = file.read(&mut buf).await?;
+                if n > 0 {
+                    hasher.update(&buf[..n]);
+                } else {
+                    break;
+                }
+            }
+            if hex::encode(hasher.finalize()) != checksum {
+                false
             } else {
-                break;
+                std::fs::remove_file(&cache_path)?;
+                true
             }
         }
-        if hex::encode(hasher.finalize()) == checksum {
-            return Ok(cache_path);
-        } else {
-            std::fs::remove_file(&cache_path)?;
+        Err(_) => true,
+    };
+
+    if download_needed {
+        let mut response = reqwest::get(base_url.join(&filename)?).await?;
+        let (file, temp_path) = NamedTempFile::new_in(&cache_dir)?.into_parts();
+        let mut file = File::from_std(file);
+        let mut hasher = Sha256::new();
+        while let Some(chunk) = response.chunk().await? {
+            hasher.update(&chunk);
+            file.write_all(&chunk).await?;
         }
+        ensure!(
+            hex::encode(hasher.finalize()) == checksum,
+            "invalid checksum for downloaded image"
+        );
+        temp_path.persist(&cache_path)?;
     }
 
-    let mut response = reqwest::get(base_url.join(&filename)?).await?;
-    let (file, temp_path) = NamedTempFile::new_in(&cache_dir)?.into_parts();
-    let mut file = File::from_std(file);
-    let mut hasher = Sha256::new();
-    while let Some(chunk) = response.chunk().await? {
-        hasher.update(&chunk);
-        file.write_all(&chunk).await?;
-    }
-    ensure!(
-        hex::encode(hasher.finalize()) == checksum,
-        "invalid checksum for downloaded image"
-    );
-    temp_path.persist(&cache_path)?;
-    Ok(cache_path)
+    // finally, decompress the image
+    Command::new("qemu-img")
+        .args(["convert", "-O", "raw"])
+        .arg(&cache_path)
+        .arg(output_file)
+        .status()
+        .await
+        .context("qemu-img convert failed")?
+        .check_status()?;
+
+    Ok(())
 }
 
 fn cache_dir() -> Result<PathBuf> {
