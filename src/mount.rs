@@ -8,18 +8,24 @@ use tokio::process::Command;
 use tracing::{error, instrument};
 
 #[derive(Debug)]
-pub(crate) struct MountPoint {
+pub(crate) struct MountPoint<'a> {
     path: TempDir,
-    kpartx: Option<Kpartx>,
+    kpartx: Option<Kpartx<'a>>,
 }
 
-impl MountPoint {
-    pub(crate) async fn new(kpartx: Kpartx, tempdir_in: &Path) -> Result<MountPoint> {
-        let path = tempfile::tempdir_in(tempdir_in)?;
+impl<'a> MountPoint<'a> {
+    pub(crate) async fn new(
+        kpartx: Kpartx<'a>,
+        tempdir_in: Option<&Path>,
+    ) -> Result<MountPoint<'a>> {
+        let path = match tempdir_in {
+            Some(dir) => tempfile::tempdir_in(dir),
+            None => tempfile::tempdir(),
+        }?;
         Command::new("mount")
             .arg(kpartx.main_partition())
             .arg(path.path())
-            .with_sudo()
+            .log()
             .status()
             .await?
             .check_status()?;
@@ -29,14 +35,18 @@ impl MountPoint {
         })
     }
 
-    pub(crate) fn unmount(mut self) -> Result<Kpartx> {
+    pub(crate) fn path(&self) -> &Path {
+        self.path.as_ref()
+    }
+
+    pub(crate) fn unmount(mut self) -> Result<Kpartx<'a>> {
         let kpartx = self.kpartx.take().unwrap();
         unmount(self.path.path())?;
         Ok(kpartx)
     }
 }
 
-impl Drop for MountPoint {
+impl Drop for MountPoint<'_> {
     #[instrument]
     fn drop(&mut self) {
         if self.kpartx.is_some() {
@@ -50,7 +60,7 @@ impl Drop for MountPoint {
 fn unmount(path: &Path) -> Result<()> {
     StdCommand::new("umount")
         .arg(path)
-        .with_sudo()
+        .log()
         .status()?
         .check_status()?;
     Ok(())

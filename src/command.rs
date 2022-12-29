@@ -2,20 +2,27 @@ use std::ffi::OsStr;
 use std::process::{Command, ExitStatus};
 use tracing::info;
 
+fn log_command(command: &Command) -> String {
+    shell_words::join(
+        std::iter::once(command.get_program())
+            .chain(command.get_args())
+            .map(OsStr::to_string_lossy),
+    )
+}
+
 pub(crate) trait CommandExt {
+    fn log(&mut self) -> &mut Self;
     fn with_sudo(&self) -> Self;
 }
 
 impl CommandExt for Command {
+    fn log(&mut self) -> &mut Command {
+        info!("running: {}", log_command(self));
+        self
+    }
+
     fn with_sudo(&self) -> Command {
-        info!(
-            "running with sudo: {}",
-            shell_words::join(
-                std::iter::once(self.get_program())
-                    .chain(self.get_args())
-                    .map(OsStr::to_string_lossy),
-            )
-        );
+        info!("running with sudo: {}", log_command(self));
 
         let mut command = Command::new("sudo");
         command.arg(self.get_program());
@@ -36,6 +43,11 @@ impl CommandExt for Command {
 }
 
 impl CommandExt for tokio::process::Command {
+    fn log(&mut self) -> &mut tokio::process::Command {
+        info!("running: {}", log_command(self.as_std()));
+        self
+    }
+
     fn with_sudo(&self) -> tokio::process::Command {
         self.as_std().with_sudo().into()
     }

@@ -2,22 +2,21 @@ use crate::command::{CommandExt, ExitStatusExt};
 use anyhow::{ensure, Context, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command as StdCommand;
-use tempfile::TempPath;
 use tokio::process::Command;
 use tracing::{error, instrument};
 
 #[derive(Debug)]
-pub(crate) struct Kpartx {
-    source: Option<TempPath>,
+pub(crate) struct Kpartx<'a> {
+    source: &'a Path,
     partitions: Vec<String>,
 }
 
-impl Kpartx {
-    pub(crate) async fn new(source: TempPath) -> Result<Kpartx> {
+impl Kpartx<'_> {
+    pub(crate) async fn new(source: &Path) -> Result<Kpartx<'_>> {
         let output = Command::new("kpartx")
             .arg("-avs")
-            .arg(&source)
-            .with_sudo()
+            .arg(source)
+            .log()
             .output()
             .await
             .context("kpartx -avs failed")?;
@@ -25,7 +24,7 @@ impl Kpartx {
 
         // define this here so that drop runs if we fail to parse the output
         let mut kpartx = Kpartx {
-            source: Some(source),
+            source,
             partitions: Vec::new(),
         };
 
@@ -48,20 +47,17 @@ impl Kpartx {
         Path::new("/dev/mapper").join(&self.partitions[0])
     }
 
-    pub(crate) fn delete(mut self) -> Result<TempPath> {
-        let source = self.source.take().unwrap();
-        cleanup(&source)?;
-        Ok(source)
+    pub(crate) fn delete(self) -> Result<()> {
+        cleanup(self.source)?;
+        Ok(())
     }
 }
 
-impl Drop for Kpartx {
+impl Drop for Kpartx<'_> {
     #[instrument]
     fn drop(&mut self) {
-        if let Some(source) = &self.source {
-            if let Err(err) = cleanup(source) {
-                error!(%err, "cleanup failed");
-            }
+        if let Err(err) = cleanup(self.source) {
+            error!(%err, "cleanup failed");
         }
     }
 }
@@ -70,7 +66,7 @@ fn cleanup(source: &Path) -> Result<()> {
     StdCommand::new("kpartx")
         .arg("-d")
         .arg(source)
-        .with_sudo()
+        .log()
         .status()?
         .check_status()?;
     Ok(())
