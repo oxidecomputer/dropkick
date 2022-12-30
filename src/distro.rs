@@ -21,7 +21,7 @@ pub(crate) async fn fetch_ubuntu(serial: Option<&str>) -> Result<PathBuf> {
     // if no serial provided, look up the current serial
     let serial = match serial {
         Some("current") | None => reqwest::get(format!(
-            "https://cloud-images.ubuntu.com/{}/current/unpacked/build-info.txt",
+            "https://cloud-images.ubuntu.com/minimal/daily/{}/current/unpacked/build-info.txt",
             version
         ))
         .await?
@@ -35,7 +35,7 @@ pub(crate) async fn fetch_ubuntu(serial: Option<&str>) -> Result<PathBuf> {
     info!("current ubuntu image version: {}", serial);
 
     let base_url = Url::parse(&format!(
-        "https://cloud-images.ubuntu.com/{}/{}/",
+        "https://cloud-images.ubuntu.com/minimal/daily/{}/{}/",
         version, serial
     ))?;
     // fetch checksum file and its signature
@@ -52,7 +52,7 @@ pub(crate) async fn fetch_ubuntu(serial: Option<&str>) -> Result<PathBuf> {
     signature.verify(&*crate::keys::UBUNTU, Cursor::new(checksums.as_bytes()))?;
     info!("verified signature of checksums file");
 
-    let filename = format!("{}-server-cloudimg-{}.img", version, arch);
+    let filename = format!("{}-minimal-cloudimg-{}.img", version, arch);
     let checksum = hex::decode(
         checksums
             .lines()
