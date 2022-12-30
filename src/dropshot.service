@@ -1,0 +1,32 @@
+[Unit]
+Description=Dropshot service (deployed by dropkick)
+
+[Service]
+ExecStart=/usr/local/bin/dropshot-service
+
+CapabilityBoundingSet=
+DynamicUser=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+PrivateDevices=true
+PrivateUsers=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+SystemCallArchitectures=native
+SystemCallFilter=~@clock @debug @module @mount @reboot @swap @privileged @resources @cpu-emulation @obsolete
+UMask=0077
+
+# these are implied by PrivateDevices=true (per systemd.exec(5)) but `systemd-analyze security` is dumb
+DevicePolicy=closed
+SystemCallFilter=~@raw-io
+
+[Install]
+WantedBy=multi-user.target

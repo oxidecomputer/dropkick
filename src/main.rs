@@ -120,6 +120,11 @@ async fn run() -> Result<()> {
             dropshot_service,
             tmpdir,
         } => {
+            // set this process's umask to 0022 to ensure files get written into the image as expected
+            unsafe {
+                libc::umask(0o022);
+            }
+
             let kpartx = Kpartx::new(&image).await?;
             let mount_point = MountPoint::new(kpartx, tmpdir.as_deref()).await?;
 
@@ -130,6 +135,22 @@ async fn run() -> Result<()> {
             tokio::fs::copy(
                 dropshot_service,
                 mount_point.path().join("usr/local/bin/dropshot-service"),
+            )
+            .await?;
+
+            info!("writing dropshot.service unit");
+            tokio::fs::write(
+                mount_point
+                    .path()
+                    .join("etc/systemd/system/dropshot.service"),
+                include_bytes!("dropshot.service"),
+            )
+            .await?;
+            tokio::fs::symlink(
+                "/etc/systemd/system/dropshot.service",
+                mount_point
+                    .path()
+                    .join("etc/systemd/system/multi-user.target.wants/dropshot.service"),
             )
             .await?;
 
