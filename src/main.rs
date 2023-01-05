@@ -14,6 +14,7 @@ use anyhow::{Context, Result};
 // use aws_sdk_ebs::{Client as EbsClient, Region};
 use clap::Parser;
 // use coldsnap::SnapshotUploader;
+use aws_sdk_ec2::model::{BlockDeviceMapping, EbsBlockDevice, VolumeType};
 use command::{CommandExt, ExitStatusExt};
 use indicatif::ProgressBar;
 use std::path::{Path, PathBuf};
@@ -51,6 +52,10 @@ enum Command {
     },
 
     CreateEc2Image {
+        #[clap(long)]
+        name: String,
+        #[clap(long)]
+        description: String,
         #[clap(long)]
         tmpdir: Option<PathBuf>,
 
@@ -99,6 +104,7 @@ async fn build_common(tmpdir: Option<&Path>, dropshot_service: &Path) -> Result<
     Ok(output_image_path)
 }
 
+#[allow(clippy::too_many_lines)]
 async fn run() -> Result<()> {
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
@@ -123,24 +129,59 @@ async fn run() -> Result<()> {
         }
 
         Command::CreateEc2Image {
+            name,
+            description,
             tmpdir,
             dropshot_service,
         } => {
             let output_image_path = build_common(tmpdir.as_deref(), &dropshot_service).await?;
 
             let config = aws_config::load_from_env().await;
-            let client = aws_sdk_ebs::Client::new(&config);
-            let uploader = coldsnap::SnapshotUploader::new(client);
+            let ebs_client = aws_sdk_ebs::Client::new(&config);
+            let ec2_client = aws_sdk_ec2::Client::new(&config);
 
             let progress_bar = ProgressBar::new(0)
                 .with_message("creating EC2 snapshot")
                 .with_style(progress::running_style());
+            let uploader = coldsnap::SnapshotUploader::new(ebs_client);
             let snapshot_id = uploader
                 .upload_from_file(&output_image_path, None, None, Some(progress_bar.clone()))
                 .await
                 .context("failed to upload snapshot")?;
+            coldsnap::SnapshotWaiter::new(ec2_client.clone())
+                .wait_for_completed(&snapshot_id)
+                .await?;
             progress_bar.set_style(progress::completed_style());
-            progress_bar.set_message(format!("created EC2 snapshot: {}", snapshot_id));
+            progress_bar.finish_with_message(format!("created EC2 snapshot: {}", snapshot_id));
+
+            let response = ec2_client
+                .register_image()
+                .name(name)
+                .description(description)
+                .virtualization_type("hvm")
+                .architecture(aws_sdk_ec2::model::ArchitectureValues::X8664)
+                .block_device_mappings(
+                    BlockDeviceMapping::builder()
+                        .device_name("/dev/xvda")
+                        .ebs(
+                            EbsBlockDevice::builder()
+                                .snapshot_id(snapshot_id)
+                                .volume_size(8)
+                                .volume_type(VolumeType::Gp3)
+                                .delete_on_termination(true)
+                                .build(),
+                        )
+                        .build(),
+                )
+                .root_device_name("/dev/xvda")
+                .ena_support(true)
+                .sriov_net_support("simple")
+                .send()
+                .await?;
+            println!(
+                "{}",
+                response.image_id().context("no image ID in response")?
+            );
 
             Ok(())
         }

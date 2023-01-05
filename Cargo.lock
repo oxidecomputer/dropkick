@@ -922,6 +922,7 @@ dependencies = [
  "anyhow",
  "aws-config",
  "aws-sdk-ebs",
+ "aws-sdk-ec2",
  "clap",
  "coldsnap",
  "dirs",

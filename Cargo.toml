@@ -9,6 +9,7 @@ edition = "2021"
 anyhow = { version = "1.0.66", features = ["backtrace"] }
 aws-config = "0.48.0"
 aws-sdk-ebs = "0.18.0"
+aws-sdk-ec2 = "0.18.0"
 clap = { version = "4.0.29", features = ["derive"] }
 coldsnap = "0.4.2"
 dirs = "4.0.0"
