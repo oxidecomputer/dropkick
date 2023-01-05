@@ -5,6 +5,7 @@ mod distro;
 mod keys;
 mod kpartx;
 mod mount;
+mod progress;
 
 use crate::kpartx::Kpartx;
 use crate::mount::MountPoint;
@@ -131,12 +132,15 @@ async fn run() -> Result<()> {
             let client = aws_sdk_ebs::Client::new(&config);
             let uploader = coldsnap::SnapshotUploader::new(client);
 
-            info!("creating EC2 snapshot");
+            let progress_bar = ProgressBar::new(0)
+                .with_message("creating EC2 snapshot")
+                .with_style(progress::running_style());
             let snapshot_id = uploader
-                .upload_from_file(&output_image_path, None, None, Some(ProgressBar::new(0)))
+                .upload_from_file(&output_image_path, None, None, Some(progress_bar.clone()))
                 .await
                 .context("failed to upload snapshot")?;
-            info!("snapshot ID: {}", snapshot_id);
+            progress_bar.set_style(progress::completed_style());
+            progress_bar.set_message(format!("created EC2 snapshot: {}", snapshot_id));
 
             Ok(())
         }

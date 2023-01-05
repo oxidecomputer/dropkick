@@ -1,3 +1,4 @@
+use crate::progress;
 use anyhow::{ensure, Context, Result};
 use indicatif::ProgressBar;
 use pgp::armor::Dearmor;
@@ -10,13 +11,18 @@ use std::path::PathBuf;
 use tempfile::NamedTempFile;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tracing::{info, warn};
+use tracing::warn;
 
 /// Download and verify an Ubuntu cloud image, and uncompress it (using qemu-img) to `output_file`.
+#[allow(clippy::too_many_lines)]
 pub(crate) async fn fetch_ubuntu(serial: Option<&str>) -> Result<PathBuf> {
     // to make it easier to customize later...
     let version = "jammy";
     let arch = "amd64";
+
+    let progress = ProgressBar::new_spinner()
+        .with_message("fetching image information")
+        .with_style(progress::running_style());
 
     // if no serial provided, look up the current serial
     let serial = match serial {
@@ -32,7 +38,6 @@ pub(crate) async fn fetch_ubuntu(serial: Option<&str>) -> Result<PathBuf> {
         .context("no image serial found in current ubuntu image build info")?,
         Some(serial) => serial.to_owned(),
     };
-    info!("current ubuntu image version: {}", serial);
 
     let base_url = Url::parse(&format!(
         "https://cloud-images.ubuntu.com/minimal/daily/{}/{}/",
@@ -50,7 +55,9 @@ pub(crate) async fn fetch_ubuntu(serial: Option<&str>) -> Result<PathBuf> {
             .await?,
     )?;
     signature.verify(&*crate::keys::UBUNTU, Cursor::new(checksums.as_bytes()))?;
-    info!("verified signature of checksums file");
+
+    progress.set_style(progress::completed_style());
+    progress.finish_with_message(format!("fetched image information (serial {})", serial));
 
     let filename = format!("{}-minimal-cloudimg-{}.img", version, arch);
     let checksum = hex::decode(
@@ -70,8 +77,9 @@ pub(crate) async fn fetch_ubuntu(serial: Option<&str>) -> Result<PathBuf> {
     ));
     let download_needed = match File::open(&cache_path).await {
         Ok(mut file) => {
-            let progress = ProgressBar::new(file.metadata().await?.len());
-            progress.set_message("verifying checksum");
+            let progress = ProgressBar::new(file.metadata().await?.len())
+                .with_message("verifying checksum")
+                .with_style(progress::running_style());
             let mut hasher = Sha256::new();
             let mut buf = [0; 8192];
             loop {
@@ -85,9 +93,11 @@ pub(crate) async fn fetch_ubuntu(serial: Option<&str>) -> Result<PathBuf> {
                 }
             }
             if hasher.finalize().as_slice() == checksum {
-                info!("cached image checksum matches");
+                progress.set_style(progress::completed_style());
+                progress.finish_with_message("verified checksum");
                 false
             } else {
+                progress.finish_with_message("checksum mismatch");
                 warn!("cached image checksum mismatch, redownloading");
                 std::fs::remove_file(&cache_path)?;
                 true
@@ -97,8 +107,9 @@ pub(crate) async fn fetch_ubuntu(serial: Option<&str>) -> Result<PathBuf> {
     };
 
     if download_needed {
-        let progress = ProgressBar::new(0);
-        progress.set_message("downloading image");
+        let progress = ProgressBar::new(0)
+            .with_message("downloading image")
+            .with_style(progress::running_style());
         let mut response = reqwest::get(base_url.join(&filename)?).await?;
         if let Some(len) = response.content_length() {
             progress.set_length(len);
@@ -115,6 +126,8 @@ pub(crate) async fn fetch_ubuntu(serial: Option<&str>) -> Result<PathBuf> {
             hasher.finalize().as_slice() == checksum,
             "invalid checksum for downloaded image"
         );
+        progress.set_style(progress::completed_style());
+        progress.finish_with_message("downloaded image");
         temp_path.persist(&cache_path)?;
     }
 
