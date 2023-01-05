@@ -15,9 +15,9 @@ use clap::Parser;
 // use coldsnap::SnapshotUploader;
 use command::{CommandExt, ExitStatusExt};
 use indicatif::ProgressBar;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{ExitCode, Termination};
-use tempfile::NamedTempFile;
+use tempfile::{NamedTempFile, TempPath};
 use tracing::info;
 use tracing_subscriber::{prelude::*, EnvFilter};
 
@@ -29,7 +29,9 @@ struct Options {
 
 #[derive(Debug, Parser)]
 enum Command {
-    CreateSnapshot {
+    Build {
+        #[clap(long)]
+        output: PathBuf,
         #[clap(long)]
         tmpdir: Option<PathBuf>,
 
@@ -46,6 +48,54 @@ enum Command {
         #[clap(long)]
         tmpdir: Option<PathBuf>,
     },
+
+    CreateEc2Image {
+        #[clap(long)]
+        tmpdir: Option<PathBuf>,
+
+        dropshot_service: PathBuf,
+    },
+}
+
+async fn build_common(tmpdir: Option<&Path>, dropshot_service: &Path) -> Result<TempPath> {
+    let input_image_path = crate::distro::fetch_ubuntu(None).await?;
+
+    // We create this file in this process before sudoing so that it's owned by our user.
+    let output_image_path = match tmpdir {
+        Some(tmpdir) => NamedTempFile::new_in(tmpdir),
+        None => NamedTempFile::new(),
+    }?
+    .into_temp_path();
+
+    tokio::process::Command::new("qemu-img")
+        .args(["convert", "-O", "raw"])
+        .arg(&input_image_path)
+        .arg(&output_image_path)
+        .kill_on_drop(true)
+        .status()
+        .await
+        .context("qemu-img convert failed")?
+        .check_status()?;
+
+    // We don't call `Command::kill_on_drop` here because we want the child process to be
+    // able to clean up after itself. If a user sends Ctrl-C in a terminal, all processes in
+    // the process group will receive SIGINT, and the `internal-build` process will clean up
+    // after itself. This is the main use case for wanting to clean up.
+    //
+    // TODO(iliana): However, I think if a user sends SIGINT to the parent process another
+    // way (e.g. kill(1)) then the child process will be orphaned.
+    tokio::process::Command::new(std::env::current_exe()?)
+        .arg("internal-build")
+        .arg("--image")
+        .arg(&output_image_path)
+        .arg("--dropshot-service")
+        .arg(dropshot_service)
+        .with_sudo()
+        .status()
+        .await?
+        .check_status()?;
+
+    Ok(output_image_path)
 }
 
 async fn run() -> Result<()> {
@@ -60,46 +110,22 @@ async fn run() -> Result<()> {
 
     let options = Options::parse();
     match options.command {
-        Command::CreateSnapshot {
+        Command::Build {
+            output,
             tmpdir,
             dropshot_service,
         } => {
-            let input_image_path = crate::distro::fetch_ubuntu(None).await?;
-
-            // We create this file in this process before sudoing so that it's owned by our user.
-            let output_image_path = match tmpdir {
-                Some(tmpdir) => NamedTempFile::new_in(tmpdir),
-                None => NamedTempFile::new(),
-            }?
-            .into_temp_path();
-
-            tokio::process::Command::new("qemu-img")
-                .args(["convert", "-O", "raw"])
-                .arg(&input_image_path)
-                .arg(&output_image_path)
-                .kill_on_drop(true)
-                .status()
-                .await
-                .context("qemu-img convert failed")?
-                .check_status()?;
-
-            // We don't call `Command::kill_on_drop` here because we want the child process to be
-            // able to clean up after itself. If a user sends Ctrl-C in a terminal, all processes in
-            // the process group will receive SIGINT, and the `internal-build` process will clean up
-            // after itself. This is the main use case for wanting to clean up.
-            //
-            // TODO(iliana): However, I think if a user sends SIGINT to the parent process another
-            // way (e.g. kill(1)) then the child process will be orphaned.
-            tokio::process::Command::new(std::env::current_exe()?)
-                .arg("internal-build")
-                .arg("--image")
-                .arg(&output_image_path)
-                .arg("--dropshot-service")
-                .arg(&dropshot_service)
-                .with_sudo()
-                .status()
+            build_common(tmpdir.as_deref(), &dropshot_service)
                 .await?
-                .check_status()?;
+                .persist(output)?;
+            Ok(())
+        }
+
+        Command::CreateEc2Image {
+            tmpdir,
+            dropshot_service,
+        } => {
+            let output_image_path = build_common(tmpdir.as_deref(), &dropshot_service).await?;
 
             let config = aws_config::load_from_env().await;
             let client = aws_sdk_ebs::Client::new(&config);
