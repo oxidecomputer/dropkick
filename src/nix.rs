@@ -10,6 +10,7 @@ const NIXOS_VERSION: &str = "22.11";
 pub(crate) struct NixosBuilder<'a> {
     pub(crate) allow_login: bool,
     pub(crate) bin_name: &'a str,
+    pub(crate) caddy_hostname: &'a str,
     pub(crate) package: &'a Package,
     pub(crate) project_dir: Utf8PathBuf,
     pub(crate) show_nix_trace: bool,

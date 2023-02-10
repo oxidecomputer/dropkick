@@ -16,6 +16,9 @@ pub(crate) struct Args {
     #[clap(long)]
     pub(crate) bin: Option<String>,
 
+    #[clap(long)]
+    pub(crate) hostname: String,
+
     /// Pass `--show-trace` to nix-build
     #[clap(long)]
     pub(crate) show_nix_trace: bool,
@@ -63,6 +66,7 @@ pub(crate) fn build(args: &Args, tempdir: impl AsRef<Utf8Path>) -> Result<Output
     let result_path = crate::nix::NixosBuilder {
         allow_login: args.allow_login,
         bin_name: &bin.name,
+        caddy_hostname: &args.hostname,
         package: &package,
         project_dir: args
             .project_dir
