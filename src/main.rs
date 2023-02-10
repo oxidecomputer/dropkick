@@ -1,172 +1,100 @@
-#![warn(clippy::pedantic)]
+mod build;
+mod tempdir;
 
-mod command;
-mod distro;
-mod keys;
-mod kpartx;
-mod mount;
-mod progress;
-
-use crate::kpartx::Kpartx;
-use crate::mount::MountPoint;
+use crate::tempdir::Utf8TempDir;
 use anyhow::{Context, Result};
-// use aws_config::environment::EnvironmentVariableCredentialsProvider;
-// use aws_sdk_ebs::{Client as EbsClient, Region};
+use aws_sdk_ec2::model::{
+    ArchitectureValues, BlockDeviceMapping, BootModeValues, EbsBlockDevice, VolumeType,
+};
+use camino::Utf8PathBuf;
 use clap::Parser;
-// use coldsnap::SnapshotUploader;
-use aws_sdk_ec2::model::{BlockDeviceMapping, EbsBlockDevice, VolumeType};
-use command::{CommandExt, ExitStatusExt};
+use coldsnap::{SnapshotUploader, SnapshotWaiter};
+use env_logger::Env;
 use indicatif::ProgressBar;
-use std::path::{Path, PathBuf};
-use std::process::{ExitCode, Termination};
-use tempfile::{NamedTempFile, TempPath};
-use tracing::info;
-use tracing_subscriber::{prelude::*, EnvFilter};
-
-#[derive(Debug, Parser)]
-struct Options {
-    #[clap(subcommand)]
-    command: Command,
-}
 
 #[derive(Debug, Parser)]
 enum Command {
+    /// Build virtual machine image
     Build {
-        #[clap(long)]
-        output: PathBuf,
-        #[clap(long)]
-        tmpdir: Option<PathBuf>,
+        #[clap(flatten)]
+        build_args: crate::build::Args,
 
-        dropshot_service: PathBuf,
+        /// Output path for built image
+        output_path: Utf8PathBuf,
     },
 
-    /// Internal subcommand for doing image build steps that require root.
-    #[clap(hide = true)]
-    InternalBuild {
-        #[clap(long)]
-        image: PathBuf,
-        #[clap(long)]
-        dropshot_service: PathBuf,
-        #[clap(long)]
-        tmpdir: Option<PathBuf>,
-    },
-
+    /// Create image for use in EC2
     CreateEc2Image {
-        #[clap(long)]
-        name: String,
-        #[clap(long)]
-        description: String,
-        #[clap(long)]
-        tmpdir: Option<PathBuf>,
-
-        dropshot_service: PathBuf,
+        #[clap(flatten)]
+        build_args: crate::build::Args,
     },
 }
 
-async fn build_common(tmpdir: Option<&Path>, dropshot_service: &Path) -> Result<TempPath> {
-    let input_image_path = crate::distro::fetch_ubuntu(None).await?;
+#[tokio::main]
+async fn main() -> Result<()> {
+    env_logger::Builder::from_env(Env::default().default_filter_or("dropkick=info")).init();
 
-    // We create this file in this process before sudoing so that it's owned by our user.
-    let output_image_path = match tmpdir {
-        Some(tmpdir) => NamedTempFile::new_in(tmpdir),
-        None => NamedTempFile::new(),
-    }?
-    .into_temp_path();
-
-    tokio::process::Command::new("qemu-img")
-        .args(["convert", "-O", "raw"])
-        .arg(&input_image_path)
-        .arg(&output_image_path)
-        .kill_on_drop(true)
-        .status()
-        .await
-        .context("qemu-img convert failed")?
-        .check_status()?;
-
-    // We don't call `Command::kill_on_drop` here because we want the child process to be
-    // able to clean up after itself. If a user sends Ctrl-C in a terminal, all processes in
-    // the process group will receive SIGINT, and the `internal-build` process will clean up
-    // after itself. This is the main use case for wanting to clean up.
-    //
-    // TODO(iliana): However, I think if a user sends SIGINT to the parent process another
-    // way (e.g. kill(1)) then the child process will be orphaned.
-    tokio::process::Command::new(std::env::current_exe()?)
-        .arg("internal-build")
-        .arg("--image")
-        .arg(&output_image_path)
-        .arg("--dropshot-service")
-        .arg(dropshot_service)
-        .with_sudo()
-        .status()
-        .await?
-        .check_status()?;
-
-    Ok(output_image_path)
-}
-
-#[allow(clippy::too_many_lines)]
-async fn run() -> Result<()> {
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer())
-        .with(
-            EnvFilter::builder()
-                .with_default_directive("dropkick=info".parse()?)
-                .from_env()?,
-        )
-        .init();
-
-    let options = Options::parse();
-    match options.command {
+    match Command::parse() {
         Command::Build {
-            output,
-            tmpdir,
-            dropshot_service,
+            build_args,
+            output_path,
         } => {
-            build_common(tmpdir.as_deref(), &dropshot_service)
-                .await?
-                .persist(output)?;
+            let tempdir =
+                Utf8TempDir::new_in(output_path.parent().context("output path has no parent")?)?;
+            let output = crate::build::build(&build_args, &tempdir)?;
+            fs_err::rename(output.image, output_path)?;
             Ok(())
         }
-
-        Command::CreateEc2Image {
-            name,
-            description,
-            tmpdir,
-            dropshot_service,
-        } => {
-            let output_image_path = build_common(tmpdir.as_deref(), &dropshot_service).await?;
+        Command::CreateEc2Image { build_args } => {
+            let tempdir = Utf8TempDir::new()?;
+            let output = crate::build::build(&build_args, &tempdir)?;
+            let image_name_suffix = format!(
+                "-{}-nixos{}-{}",
+                output.package.version, output.nixos_version, output.truncated_hash
+            );
+            let image_name = format!(
+                "{name:.len$}{suffix}",
+                name = output.package.name,
+                len = 128 - image_name_suffix.len(),
+                suffix = image_name_suffix
+            );
 
             let config = aws_config::load_from_env().await;
             let ebs_client = aws_sdk_ebs::Client::new(&config);
             let ec2_client = aws_sdk_ec2::Client::new(&config);
 
-            let progress_bar = ProgressBar::new(0)
-                .with_message("creating EC2 snapshot")
-                .with_style(progress::running_style());
-            let uploader = coldsnap::SnapshotUploader::new(ebs_client);
-            let snapshot_id = uploader
-                .upload_from_file(&output_image_path, None, None, Some(progress_bar.clone()))
+            log::info!("uploading EC2 snapshot");
+            let snapshot_id = SnapshotUploader::new(ebs_client)
+                .upload_from_file(
+                    &output.image,
+                    None,
+                    Some(&image_name),
+                    Some(ProgressBar::new(0)),
+                )
                 .await
                 .context("failed to upload snapshot")?;
-            coldsnap::SnapshotWaiter::new(ec2_client.clone())
-                .wait_for_completed(&snapshot_id)
-                .await?;
-            progress_bar.set_style(progress::completed_style());
-            progress_bar.finish_with_message(format!("created EC2 snapshot: {}", snapshot_id));
+            log::info!(
+                "uploaded EC2 snapshot ID {}; registering image",
+                snapshot_id
+            );
 
+            SnapshotWaiter::new(ec2_client.clone())
+                .wait_for_completed(&snapshot_id)
+                .await
+                .context("failed to wait for snapshot creation")?;
             let response = ec2_client
                 .register_image()
-                .name(name)
-                .description(description)
+                .name(&image_name)
                 .virtualization_type("hvm")
-                .architecture(aws_sdk_ec2::model::ArchitectureValues::X8664)
+                .architecture(ArchitectureValues::X8664)
+                .boot_mode(BootModeValues::Uefi)
                 .block_device_mappings(
                     BlockDeviceMapping::builder()
                         .device_name("/dev/xvda")
                         .ebs(
                             EbsBlockDevice::builder()
                                 .snapshot_id(snapshot_id)
-                                .volume_size(8)
+                                .volume_size(2)
                                 .volume_type(VolumeType::Gp3)
                                 .delete_on_termination(true)
                                 .build(),
@@ -180,63 +108,12 @@ async fn run() -> Result<()> {
                 .await?;
             println!(
                 "{}",
-                response.image_id().context("no image ID in response")?
+                response
+                    .image_id()
+                    .context("no image ID in ec2:RegisterImage response")?
             );
 
             Ok(())
         }
-
-        Command::InternalBuild {
-            image,
-            dropshot_service,
-            tmpdir,
-        } => {
-            // set this process's umask to 0022 to ensure files get written into the image as expected
-            unsafe {
-                libc::umask(0o022);
-            }
-
-            let kpartx = Kpartx::new(&image).await?;
-            let mount_point = MountPoint::new(kpartx, tmpdir.as_deref()).await?;
-
-            info!(
-                "copying {} to /usr/local/bin/dropshot-service",
-                dropshot_service.display()
-            );
-            tokio::fs::copy(
-                dropshot_service,
-                mount_point.path().join("usr/local/bin/dropshot-service"),
-            )
-            .await?;
-
-            info!("writing dropshot.service unit");
-            tokio::fs::write(
-                mount_point
-                    .path()
-                    .join("etc/systemd/system/dropshot.service"),
-                include_bytes!("dropshot.service"),
-            )
-            .await?;
-            tokio::fs::symlink(
-                "/etc/systemd/system/dropshot.service",
-                mount_point
-                    .path()
-                    .join("etc/systemd/system/multi-user.target.wants/dropshot.service"),
-            )
-            .await?;
-
-            let kpartx = mount_point.unmount()?;
-            kpartx.delete()?;
-            Ok(())
-        }
-    }
-}
-
-// This is separate to wire up the ctrl-C signal handler so that `Drop` implementations get run on ctrl-C.
-#[tokio::main]
-async fn main() -> ExitCode {
-    tokio::select! {
-        ret = run() => ret.report(),
-        _ = tokio::signal::ctrl_c() => 130.into(),
     }
 }

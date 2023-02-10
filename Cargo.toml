@@ -2,29 +2,22 @@
 name = "dropkick"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+publish = false
 
 [dependencies]
-anyhow = { version = "1.0.66", features = ["backtrace"] }
+anyhow = { version = "1.0.68", features = ["backtrace"] }
+askama = { version = "0.11.1", default-features = false }
 aws-config = "0.48.0"
 aws-sdk-ebs = "0.18.0"
 aws-sdk-ec2 = "0.18.0"
-clap = { version = "4.0.29", features = ["derive"] }
+camino = "1.1.2"
+cargo_metadata = "0.15.3"
+clap = { version = "4.1.4", features = ["derive"] }
 coldsnap = "0.4.2"
-dirs = "4.0.0"
-hex = "0.4.3"
-indicatif = { version = "0.17.2", features = ["improved_unicode"] }
-lazy_static = "1.4.0"
-libc = "0.2.139"
-pgp = "0.9.0"
-reqwest = "0.11.13"
-sha2 = "0.10.6"
-shell-words = "1.1.0"
+env_logger = "0.10.0"
+fs-err = "2.9.0"
+indicatif = "0.17.3"
+iso9660 = "0.1.0"
+log = "0.4.17"
 tempfile = "3.3.0"
-tokio = { version = "1.23.0", features = ["rt-multi-thread", "macros", "signal", "fs", "process"] }
-tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
-
-[profile.dev.package.sha2]
-opt-level = 3
+tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread"] }
