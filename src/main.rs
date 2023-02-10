@@ -1,4 +1,8 @@
+#![warn(clippy::pedantic)]
+#![allow(clippy::uninlined_format_args)]
+
 mod build;
+mod nix;
 mod tempdir;
 
 use crate::tempdir::Utf8TempDir;

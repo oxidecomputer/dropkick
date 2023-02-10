@@ -12,18 +12,18 @@ let
 
     # Builds a rust package from a directory on disk.
     rustPlatform.buildRustPackage rec {
-      src = {{ project_dir }};
+      src = {{ builder.project_dir }};
       cargoLock = {
-        lockFile = {{ project_dir.join("Cargo.lock") }};
+        lockFile = {{ builder.project_dir.join("Cargo.lock") }};
       };
       
-      pname = "{{ package.name }}";
-      version = "{{ package.version }}";
+      pname = "{{ builder.package.name }}";
+      version = "{{ builder.package.version }}";
 
       nativeBuildInputs = [
         # Use a rust-toolchain(.toml) file with oxalica/rust-overlay (defined above) if we have one.
         # If we don't, use the latest stable.
-        {% match toolchain_file %}
+        {% match builder.toolchain_file %}
         {% when Some with (file) %}
         (rust-bin.fromRustupToolchainFile {{ file }})
         {% when None %}
@@ -43,8 +43,23 @@ in {
   systemd.services.dropshot-server = {
     wantedBy = [ "multi-user.target" ];
     after = [ "network.target" ];
-    serviceConfig.ExecStart = "${dropshotServer}/bin/{{ bin_name }}";
+    serviceConfig.ExecStart = "${dropshotServer}/bin/{{ builder.bin_name }}";
     serviceConfig.Restart = "on-failure";
+  };
+
+  services.caddy = {
+    enable = true;
+    email = "iliana@oxide.computer";
+    virtualHosts."dropkick.ili.fyi".extraConfig = ''
+      reverse_proxy :8000
+    '';
+  };
+
+  # The firewall is enabled by default. Enabling SSH automatically allows port 22 through the
+  # firewall, but enabling Caddy does not allow any ports.
+  networking.firewall = {
+    enable = true;
+    allowedTCPPorts = [ 80 443 ];
   };
 
   system.stateVersion = "{{ nixos_version }}";
@@ -60,7 +75,6 @@ in {
   # see also https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/virtualisation/amazon-image.nix
   boot.blacklistedKernelModules = [ "xen_fbfront" ];
   boot.extraModulePackages = [ config.boot.kernelPackages.ena ];
-  boot.growPartition = true;
   boot.initrd.availableKernelModules = [ "nvme" "virtio_blk" "virtio_pci" "xen-blkfront" ];
   boot.kernelParams = [ "console=tty1" "console=ttyS0,115200n8" "random.trust_cpu=on" ];
   boot.loader.grub.extraConfig = ''
@@ -74,7 +88,7 @@ in {
   services.chrony.enable = true;
   services.resolved.enable = false;
 
-  {% if allow_login %}
+  {% if builder.allow_login %}
     # enable sshd, and cloud-init to fetch ssh keys.
     # we specifically want cloud-init (despite its bulky closure) to support the cidata volume on oxide.
     services.openssh.enable = true;

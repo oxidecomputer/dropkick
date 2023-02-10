@@ -1,13 +1,10 @@
 use anyhow::{bail, ensure, Context, Result};
-use askama::Template;
 use camino::{Utf8Path, Utf8PathBuf};
 use cargo_metadata::{MetadataCommand, Package};
 use clap::Parser;
+use fs_err::File;
 use iso9660::{DirectoryEntry, ISO9660};
 use std::io::Read;
-use std::process::Command;
-
-const NIXOS_VERSION: &str = "22.11";
 
 #[derive(Debug, Parser)]
 pub(crate) struct Args {
@@ -32,17 +29,6 @@ pub(crate) struct Output {
     pub(crate) nixos_version: String,
     pub(crate) package: Package,
     pub(crate) truncated_hash: String,
-}
-
-#[derive(Debug, Template)]
-#[template(path = "nixos-config.nix", escape = "none")]
-struct NixosConfig<'a> {
-    allow_login: bool,
-    bin_name: &'a str,
-    nixos_version: &'static str,
-    package: &'a Package,
-    project_dir: Utf8PathBuf,
-    toolchain_file: Option<Utf8PathBuf>,
 }
 
 pub(crate) fn build(args: &Args, tempdir: impl AsRef<Utf8Path>) -> Result<Output> {
@@ -74,68 +60,33 @@ pub(crate) fn build(args: &Args, tempdir: impl AsRef<Utf8Path>) -> Result<Output
         }
     };
 
-    let toolchain_file = [
-        args.project_dir.join("rust-toolchain"),
-        args.project_dir.join("rust-toolchain.toml"),
-    ]
-    .into_iter()
-    .find(|p| p.exists());
+    let result_path = crate::nix::NixosBuilder {
+        allow_login: args.allow_login,
+        bin_name: &bin.name,
+        package: &package,
+        project_dir: args
+            .project_dir
+            .canonicalize_utf8()
+            .context("failed to canonicalize project directory")?,
+        show_nix_trace: args.show_nix_trace,
+        toolchain_file: ["rust-toolchain", "rust-toolchain.toml"]
+            .into_iter()
+            .find_map(|f| {
+                let p = args.project_dir.join(f);
+                p.exists().then_some(p)
+            }),
+    }
+    .build(tempdir)?;
 
-    let config_path = tempdir.join("config.nix");
-    std::fs::write(
-        &config_path,
-        NixosConfig {
-            allow_login: args.allow_login,
-            bin_name: &bin.name,
-            nixos_version: NIXOS_VERSION,
-            package: &package,
-            project_dir: args
-                .project_dir
-                .canonicalize_utf8()
-                .context("failed to canonicalize project directory")?,
-            toolchain_file,
-        }
-        .render()?,
-    )?;
-
-    let result_path = tempdir.join("result");
-    log::info!("building image");
-    let status = Command::new("nix-build")
-        .args([
-            "<nixpkgs/nixos>",
-            "--argstr",
-            "system",
-            "x86_64-linux",
-            "-A",
-            "config.system.build.isoImage",
-        ])
-        .args(if args.show_nix_trace {
-            &["--show-trace"][..]
-        } else {
-            &[]
-        })
-        .arg("--out-link")
-        .arg(&result_path)
-        .arg("-I")
-        .arg(format!("nixpkgs=channel:nixos-{}", NIXOS_VERSION))
-        .arg("-I")
-        .arg(format!("nixos-config={}", config_path))
-        .status()?;
-    ensure!(status.success(), "nix-build failed with {}", status);
-
-    let result_path = result_path
-        .read_link_utf8()
-        .context("failed to read result link")?;
     let truncated_hash = result_path
         .file_name()
         .and_then(|s| s.get(0..32))
         .context("failed to get truncated nix store hash for path")?
         .into();
-    let original_image = result_path.join("iso").join("nixos.iso");
+    let iso_image = result_path.join("iso").join("nixos.iso");
 
     let nixos_version = {
-        let iso9660 =
-            ISO9660::new(fs_err::File::open(&original_image)?).context("failed to read ISO")?;
+        let iso9660 = ISO9660::new(File::open(&iso_image)?).context("failed to read ISO")?;
         if let Some(DirectoryEntry::File(file)) = iso9660
             .open("version.txt")
             .context("failed to open version.txt")?
@@ -150,11 +101,11 @@ pub(crate) fn build(args: &Args, tempdir: impl AsRef<Utf8Path>) -> Result<Output
         }
     };
 
-    let image = tempdir.join("nixos.iso");
-    fs_err::copy(&original_image, &image)?;
+    let final_image = tempdir.join("nixos.img");
+    fs_err::copy(iso_image, &final_image)?;
 
     Ok(Output {
-        image,
+        image: final_image,
         nixos_version,
         package,
         truncated_hash,
