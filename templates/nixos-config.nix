@@ -85,6 +85,9 @@ in {
   boot.loader.timeout = lib.mkForce 1;
   systemd.services."serial-getty@ttyS0".enable = true;
 
+  # https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/profiles/minimal.nix
+  fonts.fontconfig.enable = false;
+  programs.command-not-found.enable = false;
   services.chrony.enable = true;
   services.resolved.enable = false;
 
@@ -117,5 +120,12 @@ in {
     '';
     
     environment.systemPackages = with pkgs; [ htop ];
+  {% else %}
+    # https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/profiles/minimal.nix
+    documentation.enable = false;
+    documentation.doc.enable = false;
+    documentation.info.enable = false;
+    documentation.man.enable = false;
+    documentation.nixos.enable = false;
   {% endif %}
 }
