@@ -8,7 +8,7 @@ mod tempdir;
 use crate::tempdir::Utf8TempDir;
 use anyhow::{Context, Result};
 use aws_sdk_ec2::model::{
-    ArchitectureValues, BlockDeviceMapping, BootModeValues, EbsBlockDevice, VolumeType,
+    ArchitectureValues, BlockDeviceMapping, BootModeValues, EbsBlockDevice, Filter, VolumeType,
 };
 use camino::Utf8PathBuf;
 use clap::Parser;
@@ -62,10 +62,25 @@ async fn main() -> Result<()> {
                 len = 128 - image_name_suffix.len(),
                 suffix = image_name_suffix
             );
+            log::info!("image name: {}", image_name);
 
             let config = aws_config::load_from_env().await;
             let ebs_client = aws_sdk_ebs::Client::new(&config);
             let ec2_client = aws_sdk_ec2::Client::new(&config);
+
+            if let Some(image_id) = ec2_client
+                .describe_images()
+                .owners("self")
+                .filters(Filter::builder().name("name").values(&image_name).build())
+                .send()
+                .await?
+                .images()
+                .and_then(|images| images.first()?.image_id())
+            {
+                log::info!("image already registered");
+                println!("{}", image_id);
+                return Ok(());
+            }
 
             log::info!("uploading EC2 snapshot");
             let snapshot_id = SnapshotUploader::new(ebs_client)
