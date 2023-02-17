@@ -12,7 +12,7 @@ let
 
     # Builds a rust package from a directory on disk.
     rustPlatform.buildRustPackage rec {
-      src = {{ builder.project_dir }};
+      src = nix-gitignore.gitignoreSource [] {{ builder.project_dir }};
       cargoLock = {
         lockFile = {{ builder.project_dir.join("Cargo.lock") }};
       };
