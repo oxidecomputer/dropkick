@@ -63,17 +63,15 @@ pub(crate) fn build(args: &Args, tempdir: impl AsRef<Utf8Path>) -> Result<Output
         }
     };
 
-    let project_dir = args
-        .project_dir
-        .canonicalize_utf8()
-        .context("failed to canonicalize project directory")?;
     let result_path = crate::nix::NixosBuilder {
         allow_login: args.allow_login,
         bin_name: &bin.name,
         caddy_hostname: &args.hostname,
         package: &package,
-        project_dir: &project_dir,
-        cargo_lock_file: project_dir.join("Cargo.lock"),
+        project_dir: args
+            .project_dir
+            .canonicalize_utf8()
+            .context("failed to canonicalize project directory")?,
         show_nix_trace: args.show_nix_trace,
         toolchain_file: ["rust-toolchain", "rust-toolchain.toml"]
             .into_iter()

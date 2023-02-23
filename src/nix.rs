@@ -13,8 +13,7 @@ pub(crate) struct NixosBuilder<'a> {
     pub(crate) bin_name: &'a str,
     pub(crate) caddy_hostname: &'a str,
     pub(crate) package: &'a Package,
-    pub(crate) project_dir: &'a Utf8Path,
-    pub(crate) cargo_lock_file: Utf8PathBuf,
+    pub(crate) project_dir: Utf8PathBuf,
     pub(crate) show_nix_trace: bool,
     pub(crate) toolchain_file: Option<Utf8PathBuf>,
 }

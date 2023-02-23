@@ -17,7 +17,7 @@ let
       rustPlatform.buildRustPackage rec {
         src = nix-gitignore.gitignoreSource [ ] (/. + dropkickInput.projectDir);
         cargoLock = {
-          lockFile = /. + dropkickInput.cargoLockFile;
+          lockFile = /. + dropkickInput.projectDir + "/Cargo.lock";
         };
 
         pname = dropkickInput.package.name;
