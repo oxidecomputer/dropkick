@@ -6,7 +6,6 @@ publish = false
 
 [dependencies]
 anyhow = { version = "1.0.68", features = ["backtrace"] }
-askama = { version = "0.11.1", default-features = false }
 aws-config = "0.48.0"
 aws-sdk-ebs = "0.18.0"
 aws-sdk-ec2 = "0.18.0"
@@ -19,5 +18,7 @@ fs-err = "2.9.0"
 indicatif = "0.17.3"
 iso9660 = "0.1.0"
 log = "0.4.17"
+serde = { version = "1.0.152", features = ["derive"] }
+serde_json = "1.0.93"
 tempfile = "3.3.0"
 tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread"] }

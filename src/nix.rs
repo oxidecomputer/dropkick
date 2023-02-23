@@ -1,25 +1,28 @@
 use anyhow::{ensure, Context, Result};
-use askama::Template;
 use camino::{Utf8Path, Utf8PathBuf};
 use cargo_metadata::Package;
+use serde::Serialize;
 use std::process::Command;
 
 const NIXOS_VERSION: &str = "22.11";
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct NixosBuilder<'a> {
     pub(crate) allow_login: bool,
     pub(crate) bin_name: &'a str,
     pub(crate) caddy_hostname: &'a str,
     pub(crate) package: &'a Package,
-    pub(crate) project_dir: Utf8PathBuf,
+    pub(crate) project_dir: &'a Utf8Path,
+    pub(crate) cargo_lock_file: Utf8PathBuf,
     pub(crate) show_nix_trace: bool,
     pub(crate) toolchain_file: Option<Utf8PathBuf>,
 }
 
-#[derive(Debug, Template)]
-#[template(path = "nixos-config.nix", escape = "none")]
-struct NixosConfig<'a> {
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Input<'a> {
+    #[serde(flatten)]
     builder: &'a NixosBuilder<'a>,
     nixos_version: &'static str,
 }
@@ -27,15 +30,16 @@ struct NixosConfig<'a> {
 impl NixosBuilder<'_> {
     pub(crate) fn build(&self, tempdir: &Utf8Path) -> Result<Utf8PathBuf> {
         let config_path = tempdir.join("config.nix");
+        let json_path = tempdir.join("input.json");
         let result_path = tempdir.join("result");
 
+        std::fs::write(&config_path, include_str!("config.nix"))?;
         std::fs::write(
-            &config_path,
-            NixosConfig {
+            json_path,
+            serde_json::to_vec(&Input {
                 builder: self,
                 nixos_version: NIXOS_VERSION,
-            }
-            .render()?,
+            })?,
         )?;
 
         log::info!("building image");
