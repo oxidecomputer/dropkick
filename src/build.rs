@@ -16,6 +16,10 @@ pub(crate) struct Args {
     #[clap(long)]
     pub(crate) bin: Option<String>,
 
+    /// Environment for the dropshot service (see EnvironmentFile in systemd.exec(5))
+    #[clap(long)]
+    pub(crate) env_file: Option<Utf8PathBuf>,
+
     #[clap(long)]
     pub(crate) hostname: String,
 
@@ -67,6 +71,7 @@ pub(crate) fn build(args: &Args, tempdir: impl AsRef<Utf8Path>) -> Result<Output
         allow_login: args.allow_login,
         bin_name: &bin.name,
         caddy_hostname: &args.hostname,
+        env_file: args.env_file.as_deref(),
         package: &package,
         project_dir: args
             .project_dir

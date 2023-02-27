@@ -48,8 +48,12 @@ in
         wantedBy = [ "multi-user.target" ];
         after = [ "network.target" ];
         before = [ "caddy.service" ];
-        serviceConfig.ExecStart = "${dropshotServer}/bin/${dropkickInput.binName}";
-        serviceConfig.Restart = "on-failure";
+        serviceConfig = {
+          ExecStart = "${dropshotServer}/bin/${dropkickInput.binName}";
+          Restart = "on-failure";
+        } // (if (isNull dropkickInput.envFile) then { } else {
+          EnvironmentFile = pkgs.copyPathToStore (/. + dropkickInput.envFile);
+        });
       };
 
       services.caddy = {
