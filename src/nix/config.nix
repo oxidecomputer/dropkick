@@ -47,6 +47,7 @@ in
       systemd.services.dropshot-server = {
         wantedBy = [ "multi-user.target" ];
         after = [ "network.target" ];
+        before = [ "caddy.service" ];
         serviceConfig.ExecStart = "${dropshotServer}/bin/${dropkickInput.binName}";
         serviceConfig.Restart = "on-failure";
       };
