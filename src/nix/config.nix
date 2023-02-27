@@ -59,7 +59,7 @@ in
       services.caddy = {
         enable = true;
         email = "iliana@oxide.computer";
-        virtualHosts."${dropkickInput.caddyHostname}".extraConfig = ''
+        virtualHosts."${dropkickInput.hostname}".extraConfig = ''
           reverse_proxy :8000
         '';
       };

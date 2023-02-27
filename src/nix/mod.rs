@@ -9,13 +9,11 @@ const NIXOS_VERSION: &str = "22.11";
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct NixosBuilder<'a> {
-    pub(crate) allow_login: bool,
+    #[serde(flatten)]
+    pub(crate) build_args: &'a crate::build::Args,
+
     pub(crate) bin_name: &'a str,
-    pub(crate) caddy_hostname: &'a str,
-    pub(crate) env_file: Option<&'a Utf8Path>,
     pub(crate) package: &'a Package,
-    pub(crate) project_dir: Utf8PathBuf,
-    pub(crate) show_nix_trace: bool,
     pub(crate) toolchain_file: Option<Utf8PathBuf>,
 }
 
@@ -24,6 +22,7 @@ pub(crate) struct NixosBuilder<'a> {
 struct Input<'a> {
     #[serde(flatten)]
     builder: &'a NixosBuilder<'a>,
+
     nixos_version: &'static str,
 }
 
@@ -52,7 +51,7 @@ impl NixosBuilder<'_> {
                 "-A",
                 "config.system.build.isoImage",
             ])
-            .args(if self.show_nix_trace {
+            .args(if self.build_args.show_nix_trace {
                 &["--show-trace"][..]
             } else {
                 &[]

@@ -45,13 +45,13 @@ async fn main() -> Result<()> {
         } => {
             let tempdir =
                 Utf8TempDir::new_in(output_path.parent().context("output path has no parent")?)?;
-            let output = crate::build::build(&build_args, &tempdir)?;
+            let output = build_args.build(&tempdir)?;
             fs_err::rename(output.image, output_path)?;
             Ok(())
         }
         Command::CreateEc2Image { build_args } => {
             let tempdir = Utf8TempDir::new()?;
-            let output = crate::build::build(&build_args, &tempdir)?;
+            let output = build_args.build(&tempdir)?;
             let image_name_suffix = format!(
                 "-{}-nixos{}-{}",
                 output.package.version, output.nixos_version, output.truncated_hash
