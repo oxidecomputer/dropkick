@@ -60,7 +60,7 @@ in
         enable = true;
         email = "iliana@oxide.computer";
         virtualHosts."${dropkickInput.hostname}".extraConfig = ''
-          reverse_proxy :8000
+          reverse_proxy :${toString dropkickInput.port}
         '';
       };
 

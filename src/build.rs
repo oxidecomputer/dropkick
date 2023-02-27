@@ -23,8 +23,13 @@ pub(crate) struct Args {
     #[clap(long)]
     pub(crate) env_file: Option<Utf8PathBuf>,
 
+    /// Hostname the service will respond to
     #[clap(long)]
     pub(crate) hostname: String,
+
+    /// Port the service will listen on
+    #[clap(long, default_value = "8000")]
+    pub(crate) port: Option<u16>,
 
     /// Pass `--show-trace` to nix-build
     #[clap(long)]
