@@ -36,6 +36,11 @@ pub(crate) struct Args {
     #[serde(skip_serializing)]
     pub(crate) show_nix_trace: bool,
 
+    /// Configure Caddy to retrieve certificates from the Let's Encrypt staging environment (for
+    /// testing Dropkick without hitting rate limits)
+    #[clap(long)]
+    pub(crate) test_cert: bool,
+
     /// Path to project directory (containing Cargo.toml)
     pub(crate) project_dir: Utf8PathBuf,
 }

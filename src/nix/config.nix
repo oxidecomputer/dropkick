@@ -62,7 +62,9 @@ in
         virtualHosts."${dropkickInput.hostname}".extraConfig = ''
           reverse_proxy :${toString dropkickInput.port}
         '';
-      };
+      } // (if dropkickInput.testCert then {
+        acmeCA = "https://acme-staging-v02.api.letsencrypt.org/directory";
+      } else { });
 
       # The firewall is enabled by default. Enabling SSH automatically allows port 22 through the
       # firewall, but enabling Caddy does not allow any ports.
