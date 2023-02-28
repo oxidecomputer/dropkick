@@ -8,7 +8,8 @@ mod tempdir;
 use crate::tempdir::Utf8TempDir;
 use anyhow::{Context, Result};
 use aws_sdk_ec2::model::{
-    ArchitectureValues, BlockDeviceMapping, BootModeValues, EbsBlockDevice, Filter, VolumeType,
+    ArchitectureValues, BlockDeviceMapping, BootModeValues, EbsBlockDevice, Filter,
+    ImdsSupportValues, VolumeType,
 };
 use camino::Utf8PathBuf;
 use clap::Parser;
@@ -123,6 +124,7 @@ async fn main() -> Result<()> {
                 .root_device_name("/dev/xvda")
                 .ena_support(true)
                 .sriov_net_support("simple")
+                .imds_support(ImdsSupportValues::V20)
                 .send()
                 .await?;
             println!(
