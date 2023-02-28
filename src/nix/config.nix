@@ -24,9 +24,9 @@ let
         nativeBuildInputs = [
           # Use a rust-toolchain(.toml) file with oxalica/rust-overlay (defined above) if we have one.
           # If we don't, use the latest stable.
-          (if (isNull dropkickInput.toolchainFile)
-          then rust-bin.stable.latest.minimal
-          else (rust-bin.fromRustupToolchainFile (/. + dropkickInput.toolchainFile)))
+          (if (dropkickInput.toolchainFile != null)
+          then (rust-bin.fromRustupToolchainFile (/. + dropkickInput.toolchainFile))
+          else rust-bin.stable.latest.minimal)
         ];
 
         # Disable `cargo test`.
@@ -51,9 +51,9 @@ in
         serviceConfig = {
           ExecStart = "${dropshotServer}/bin/${dropkickInput.binName}";
           Restart = "on-failure";
-        } // (if (isNull dropkickInput.envFile) then { } else {
+        } // (if (dropkickInput.envFile != null) then {
           EnvironmentFile = pkgs.copyPathToStore (/. + dropkickInput.envFile);
-        });
+        } else { });
       };
 
       services.caddy = {
