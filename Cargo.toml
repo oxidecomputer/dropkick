@@ -6,13 +6,13 @@ publish = false
 
 [dependencies]
 anyhow = { version = "1.0.68", features = ["backtrace"] }
-aws-config = "0.48.0"
-aws-sdk-ebs = "0.18.0"
-aws-sdk-ec2 = "0.18.0"
+aws-config = "0.54.1"
+aws-sdk-ebs = "0.24.0"
+aws-sdk-ec2 = "0.24.0"
 camino = "1.1.2"
 cargo_metadata = "0.15.3"
 clap = { version = "4.1.4", features = ["derive"] }
-coldsnap = "0.4.2"
+coldsnap = { git = "https://github.com/awslabs/coldsnap.git", rev = "bd10e4c0e52be0817b34150e7bde7cb409ec270a", version = "0.4.2" }
 env_logger = "0.10.0"
 fs-err = "2.9.0"
 indicatif = "0.17.3"
@@ -20,5 +20,5 @@ iso9660 = "0.1.0"
 log = "0.4.17"
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.93"
-tempfile = "3.3.0"
+tempfile = "3.4.0"
 tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread"] }
