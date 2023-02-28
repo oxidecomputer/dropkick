@@ -25,7 +25,7 @@ enum Command {
         build_args: crate::build::Args,
 
         /// Output path for built image
-        output_path: Utf8PathBuf,
+        output_path: Option<Utf8PathBuf>,
     },
 
     /// Create image for use in EC2
@@ -44,10 +44,15 @@ async fn main() -> Result<()> {
             build_args,
             output_path,
         } => {
-            let tempdir =
-                Utf8TempDir::new_in(output_path.parent().context("output path has no parent")?)?;
+            let tempdir = if let Some(output_path) = &output_path {
+                Utf8TempDir::new_in(output_path.parent().context("output path has no parent")?)?
+            } else {
+                Utf8TempDir::new()?
+            };
             let output = build_args.build(&tempdir)?;
-            fs_err::rename(output.image, output_path)?;
+            if let Some(output_path) = &output_path {
+                fs_err::rename(output.image, output_path)?;
+            }
             Ok(())
         }
         Command::CreateEc2Image { build_args } => {

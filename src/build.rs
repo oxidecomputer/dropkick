@@ -29,7 +29,7 @@ pub(crate) struct Args {
 
     /// Port the service will listen on
     #[clap(long, default_value = "8000")]
-    pub(crate) port: Option<u16>,
+    pub(crate) port: u16,
 
     /// Pass `--show-trace` to nix-build
     #[clap(long)]
@@ -42,6 +42,7 @@ pub(crate) struct Args {
     pub(crate) test_cert: bool,
 
     /// Path to project directory (containing Cargo.toml)
+    #[clap(default_value = ".")]
     pub(crate) project_dir: Utf8PathBuf,
 }
 
@@ -64,6 +65,9 @@ impl Args {
             .root_package()
             .context("failed to determine root package")?
             .clone();
+        if package.name == "dropkick" {
+            log::warn!("you are attempting to build a dropkick image out of dropkick");
+        }
         let mut bin_iter = package
             .targets
             .iter()
