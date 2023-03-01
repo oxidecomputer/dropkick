@@ -2,6 +2,7 @@ import { CfnOutput, CfnParameter, Fn, Stack } from "aws-cdk-lib";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
+import { HealthCheck } from "./health";
 import { autoName, LinuxMachineImage } from "./util";
 
 /**
@@ -209,11 +210,19 @@ export class DropkickInstance extends Construct {
     );
     this.instanceRole = this.instance.role;
 
-    new ec2.CfnNetworkInterfaceAttachment(this, "InterfaceAttachment", {
-      deleteOnTermination: false,
-      deviceIndex: "1",
-      instanceId: this.instance.instanceId,
-      networkInterfaceId: serviceInterface.ref,
+    const healthCheck = new HealthCheck(this, "HealthCheck", {
+      publicIp: this.instance.instancePublicIp,
     });
+    const attachment = new ec2.CfnNetworkInterfaceAttachment(
+      this,
+      "InterfaceAttachment",
+      {
+        deleteOnTermination: false,
+        deviceIndex: "1",
+        instanceId: this.instance.instanceId,
+        networkInterfaceId: serviceInterface.ref,
+      }
+    );
+    attachment.node.addDependency(healthCheck);
   }
 }
