@@ -59,8 +59,38 @@ in
       services.caddy = {
         enable = true;
         email = "iliana@oxide.computer";
+
+        # Set up reverse proxy.
+        # tls.on_demand is used because Caddy will start up and request a certificate before it is accessible.
         virtualHosts."${dropkickInput.hostname}".extraConfig = ''
+          tls {
+            on_demand
+          }
+
           reverse_proxy :${toString dropkickInput.port}
+        '';
+
+        # Configure on_demand_tls, per https://caddyserver.com/docs/automatic-https#on-demand-tls.
+        # This shouldn't be necessary because we aren't using any wildcards with tls.on_demand enabled.
+        # But hey, a self-contained implementation is trivial and better safe than sorry.
+        globalConfig = ''
+          on_demand_tls {
+            ask http://localhost:478/check
+            interval 2m
+            burst 5
+          }
+
+          # disable the zerossl issuer
+          cert_issuer acme
+        '';
+        # Set up on_demand_tls.ask responder.
+        virtualHosts."http://localhost:478".extraConfig = ''
+          @valid {
+            path /check
+            query domain=${dropkickInput.hostname}
+          }
+          respond @valid 200
+          respond 404
         '';
       } // (if dropkickInput.testCert then {
         acmeCA = "https://acme-staging-v02.api.letsencrypt.org/directory";
