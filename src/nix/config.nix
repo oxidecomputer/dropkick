@@ -51,6 +51,30 @@ in
         serviceConfig = {
           ExecStart = "${dropshotServer}/bin/${dropkickInput.binName}";
           Restart = "on-failure";
+
+          # sandboxing and other general security:
+          # (see systemd.exec(5) and `systemd-analyze security dropshot-server.service`)
+          ProtectProc = "invisible";
+          DynamicUser = true;
+          CapabilityBoundingSet = "";
+          UMask = "0077";
+          ProtectHome = true;
+          PrivateDevices = true;
+          PrivateUsers = true;
+          ProtectHostname = true;
+          ProtectClock = true;
+          ProtectKernelTunables = true;
+          ProtectKernelModules = true;
+          ProtectKernelLogs = true;
+          ProtectControlGroups = true;
+          RestrictAddressFamilies = "AF_INET AF_INET6 AF_UNIX";
+          RestrictNamespaces = true;
+          LockPersonality = true;
+          MemoryDenyWriteExecute = true;
+          RestrictRealtime = true;
+          SystemCallFilter = "@system-service";
+          SystemCallErrorNumber = "EPERM";
+          SystemCallArchitectures = "native";
         } // (if (dropkickInput.envFile != null) then {
           EnvironmentFile = pkgs.copyPathToStore (/. + dropkickInput.envFile);
         } else { });
