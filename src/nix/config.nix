@@ -242,12 +242,17 @@ in
     (if dropkickInput.allowLogin then {
       services.openssh = {
         enable = true;
+        kbdInteractiveAuthentication = false;
+        passwordAuthentication = false;
         permitRootLogin = "prohibit-password";
         hostKeys = [
           { path = "/persist/etc/ssh/ssh_host_rsa_key"; type = "rsa"; bits = 4096; }
           { path = "/persist/etc/ssh/ssh_host_ed25519_key"; type = "ed25519"; }
         ];
       };
+
+      # Tell dhcpcd to wait for an IPv4 address, so that IMDS is reachable if we're in AWS.
+      networking.dhcpcd.wait = "ipv4";
 
       systemd.services.dropkick-ssh-keys = {
         description = "Add SSH keys from EC2 IMDS or the Oxide cidata volume";
@@ -262,7 +267,7 @@ in
           mkdir /root/.ssh
 
           if [[ $(${pkgs.dmidecode}/bin/dmidecode --string system-uuid) == ec2* ]]; then
-            token=$(${pkgs.curl}/bin/curl -v --retry 3 --retry-delay 1 --fail --connect-timeout 1 \
+            token=$(${pkgs.curl}/bin/curl -v --retry-all-errors --retry 5 --retry-delay 2 --fail --connect-timeout 1 \
               -X PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 600' http://169.254.169.254/latest/api/token)
             ${pkgs.curl}/bin/curl -H "X-aws-ec2-metadata-token: $token" -o /root/.ssh/authorized_keys \
               http://169.254.169.254/latest/meta-data/public-keys/0/openssh-key
