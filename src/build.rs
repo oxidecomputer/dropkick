@@ -5,7 +5,7 @@ use clap::Parser;
 use fs_err::File;
 use iso9660::{DirectoryEntry, ISO9660};
 use serde::Serialize;
-use std::io::Read;
+use std::io::{Read, Seek, SeekFrom, Write};
 
 #[derive(Debug, Parser, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -122,14 +122,47 @@ impl Args {
             }
         };
 
-        let final_image = tempdir.join("nixos.img");
-        fs_err::copy(iso_image, &final_image)?;
+        let final_image_path = tempdir.join("nixos.img");
+        let mut final_image = File::create(&final_image_path)?;
+        std::io::copy(&mut File::open(iso_image)?, &mut final_image)?;
+
+        // append an empty ext4 filesystem to the image (see notes about /persist in config.nix)
+        sparse_copy(
+            &mut zstd::Decoder::new(include_bytes!("fs/ext4.zst").as_slice())?,
+            &mut final_image,
+        )?;
+        let len = final_image.stream_position()?;
+        final_image.set_len(len)?;
 
         Ok(Output {
-            image: final_image,
+            image: final_image_path,
             nixos_version,
             package,
             truncated_hash,
         })
     }
+}
+
+fn sparse_copy(src: &mut impl Read, dest: &mut (impl Write + Seek)) -> Result<()> {
+    let mut buf = [0; 4096];
+    let mut seek = 0;
+    loop {
+        let n = src.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        if buf[..n] == [0; 4096][..n] {
+            seek += i64::try_from(n).unwrap();
+        } else {
+            if seek > 0 {
+                dest.seek(SeekFrom::Current(seek))?;
+                seek = 0;
+            }
+            dest.write_all(&buf)?;
+        }
+    }
+    if seek > 0 {
+        dest.seek(SeekFrom::Current(seek))?;
+    }
+    Ok(())
 }
