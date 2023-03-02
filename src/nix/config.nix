@@ -248,30 +248,35 @@ in
           { path = "/persist/etc/ssh/ssh_host_ed25519_key"; type = "ed25519"; }
         ];
       };
-      services.cloud-init.enable = true;
-      services.cloud-init.network.enable = true;
-      services.cloud-init.config = ''
-        system_info:
-          distro: nixos
-          network:
-            renderers: [ 'networkd' ]
-        users:
-          - root
-        disable_root: false
-        preserve_hostname: false
 
-        cloud_init_modules:
-          - update_hostname
-          - users-groups
-        cloud_config_modules:
-          - ssh
-        cloud_final_modules:
-          - ssh-authkey-fingerprints
-          - keys-to-console
-          - final-message
-      '';
+      systemd.services.dropkick-ssh-keys = {
+        description = "Add SSH keys from EC2 IMDS or the Oxide cidata volume";
+        wantedBy = [ "multi-user.target" ];
+        after = [ "network-online.target" ];
+        wants = [ "network-online.target" ];
+        before = [ "sshd.service" ];
 
-      environment.systemPackages = with pkgs; [ htop ];
+        script = ''
+          [[ -f /root/.ssh/authorized_keys ]] && exit 0
+          umask 0077
+          mkdir /root/.ssh
+
+          if [[ $(${pkgs.dmidecode}/bin/dmidecode --string system-uuid) == ec2* ]]; then
+            token=$(${pkgs.curl}/bin/curl -v --retry 3 --retry-delay 1 --fail --connect-timeout 1 \
+              -X PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 600' http://169.254.169.254/latest/api/token)
+            ${pkgs.curl}/bin/curl -H "X-aws-ec2-metadata-token: $token" -o /root/.ssh/authorized_keys \
+              http://169.254.169.254/latest/meta-data/public-keys/0/openssh-key
+          elif [[ -b /dev/disk/by-label/cidata ]]; then
+            ${pkgs.mtools}/bin/copy -i /dev/disk/by-label/cidata ::/meta-data - \
+              | ${pkgs.jq}/bin/jq -r '."public-keys"[]' > /root/.ssh/authorized_keys
+          fi
+        '';
+
+        serviceConfig.Type = "oneshot";
+        serviceConfig.RemainAfterExit = true;
+      };
+
+      environment.systemPackages = with pkgs; [ htop tree ];
     } else {
       # https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/profiles/minimal.nix
       documentation.enable = false;
