@@ -50,12 +50,13 @@ export class DropkickInstance extends Construct {
     }).valueAsString;
 
     this.vpc = new ec2.Vpc(this, "VPC", {
-      // We are creating a network interface with known IPv4 and IPv6 addresses,
-      // so we can hardcode those into DNS. A network interface belongs to a
-      // subnet, and a subnet belongs to a single availability zone, so we only
-      // need to configure subnets for a single availability zone. (We don't
-      // have to do this, but the other subnets would not be used anyway.)
-      maxAzs: 1,
+      // We only *need* one subnet because we are creating a network interface
+      // with known IPv4 and IPv6 addresses, so we can hardcode those into DNS.
+      // A network interface belongs to a subnet, and a subnet belongs to a
+      // single availability zone, so we only need to configure subnets for a
+      // single availability zone. But unfortunately systems like RDS assume you
+      // have subnets in more than one AZ. This sucks, but what're you gonna do.
+      maxAzs: 2,
 
       subnetConfiguration: [
         // We define the "Service" subnet as the subnet containing the network
@@ -64,6 +65,11 @@ export class DropkickInstance extends Construct {
         // interface on the instance) because we don't need a separate subnet
         // for it.
         { subnetType: ec2.SubnetType.PUBLIC, name: "Service" },
+
+        // We also set up an isolated private subnet, which is useful for things
+        // like databases or whatever. Not used in this stack, but things using
+        // this same VPC might want 'em.
+        { subnetType: ec2.SubnetType.PRIVATE_ISOLATED, name: "Isolated" },
       ],
     });
     // Fish the VPCGatewayAttachment out of the Vpc construct, so we can add

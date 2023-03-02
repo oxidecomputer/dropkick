@@ -1,6 +1,6 @@
 {
   "name": "@oxide/dropkick-cdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "AWS CDK construct for use with Dropkick",
   "files": [
     "dist"
