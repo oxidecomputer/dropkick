@@ -35,6 +35,10 @@ pub(crate) struct Args {
     #[clap(long, default_value = "8000")]
     pub(crate) port: u16,
 
+    /// Command line arguments to the dropshot service binary
+    #[clap(long)]
+    pub(crate) run_args: Option<String>,
+
     /// Pass `--show-trace` to nix-build
     #[clap(long)]
     #[serde(skip_serializing)]

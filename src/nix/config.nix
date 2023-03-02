@@ -53,7 +53,7 @@ in
         after = [ "network.target" ];
         before = [ "caddy.service" ];
         serviceConfig = {
-          ExecStart = "${dropshotServer}/bin/${dropkickInput.binName}";
+          ExecStart = "${dropshotServer}/bin/${dropkickInput.binName} ${dropkickInput.runArgs}";
           Restart = "on-failure";
 
           # sandboxing and other general security:
