@@ -61,10 +61,10 @@ pub(crate) struct Args {
     #[clap(long)]
     pub(crate) test_cert: bool,
 
-    /// Path to project directory (containing Cargo.toml)
+    /// Path to package directory (containing Cargo.toml)
     #[clap(default_value = ".")]
     #[serde(skip_serializing)]
-    pub(crate) project_dir: Utf8PathBuf,
+    pub(crate) package_dir: Utf8PathBuf,
 }
 
 pub(crate) struct Output {
@@ -79,12 +79,14 @@ impl Args {
         let tempdir = tempdir.as_ref();
 
         let metadata = MetadataCommand::new()
-            .current_dir(&self.project_dir)
+            .current_dir(&self.package_dir)
             .exec()
             .context("failed to run `cargo metadata`")?;
         let package = metadata
             .root_package()
-            .context("failed to determine root package")?
+            .context(
+                "cannot determine root package (does PACKAGE_DIR/Cargo.toml have a [package] entry?)",
+            )?
             .clone();
         if package.name == "dropkick" {
             log::warn!("you are attempting to build a dropkick image out of dropkick");
@@ -114,7 +116,7 @@ impl Args {
             toolchain_file: ["rust-toolchain", "rust-toolchain.toml"]
                 .into_iter()
                 .find_map(|f| {
-                    let p = self.project_dir.join(f);
+                    let p = self.package_dir.join(f);
                     p.exists().then_some(p)
                 }),
             workspace_root: metadata.workspace_root,
