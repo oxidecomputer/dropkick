@@ -75,7 +75,12 @@ pub(crate) struct Output {
 }
 
 impl Args {
-    pub(crate) fn build(&self, tempdir: impl AsRef<Utf8Path>) -> Result<Output> {
+    pub(crate) fn build(mut self, tempdir: impl AsRef<Utf8Path>) -> Result<Output> {
+        self.package_dir = self
+            .package_dir
+            .canonicalize_utf8()
+            .with_context(|| format!("failed to canonicalize {}", self.package_dir))?;
+
         let tempdir = tempdir.as_ref();
 
         let metadata = MetadataCommand::new()
@@ -110,15 +115,10 @@ impl Args {
         };
 
         let result_path = crate::nix::NixosBuilder {
-            build_args: self,
+            build_args: &self,
             bin_name: &bin.name,
             package: &package,
-            toolchain_file: ["rust-toolchain", "rust-toolchain.toml"]
-                .into_iter()
-                .find_map(|f| {
-                    let p = self.package_dir.join(f);
-                    p.exists().then_some(p)
-                }),
+            toolchain_file: find_toolchain_file(&self.package_dir, &metadata.workspace_root),
             workspace_root: metadata.workspace_root,
         }
         .build(tempdir)?;
@@ -164,6 +164,33 @@ impl Args {
             package,
             truncated_hash,
         })
+    }
+}
+
+fn find_toolchain_file(package_dir: &Utf8Path, workspace_root: &Utf8Path) -> Option<Utf8PathBuf> {
+    fn inner(dir: &Utf8Path) -> Option<Utf8PathBuf> {
+        ["rust-toolchain", "rust-toolchain.toml"]
+            .into_iter()
+            .find_map(|f| {
+                let p = dir.join(f);
+                p.exists().then_some(p)
+            })
+    }
+
+    if package_dir.starts_with(workspace_root) {
+        // Go up the directory tree until we find a toolchain file or hit `workspace_root`.
+        for dir in package_dir.ancestors() {
+            if !dir.starts_with(workspace_root) {
+                break;
+            }
+            if let Some(path) = inner(package_dir) {
+                return Some(path);
+            }
+        }
+        None
+    } else {
+        // Only look in `package_dir` for a toolchain file.
+        inner(package_dir)
     }
 }
 
