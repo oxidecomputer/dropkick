@@ -19,6 +19,7 @@ pub(crate) struct NixosBuilder<'a> {
     pub(crate) bin_name: &'a str,
     pub(crate) package: &'a Package,
     pub(crate) toolchain_file: Option<Utf8PathBuf>,
+    pub(crate) workspace_root: Utf8PathBuf,
 }
 
 #[derive(Debug, Serialize)]

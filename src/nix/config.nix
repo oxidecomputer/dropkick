@@ -16,10 +16,10 @@ let
             (import (fetchTarball "https://github.com/oxalica/rust-overlay/archive/master.tar.gz"))
           ];
         };
-      rustPlatform.buildRustPackage rec {
-        src = nix-gitignore.gitignoreSource [ ] (/. + dropkickInput.projectDir);
+      rustPlatform.buildRustPackage {
+        src = nix-gitignore.gitignoreSource [ ] (/. + dropkickInput.workspaceRoot);
         cargoLock = {
-          lockFile = /. + dropkickInput.projectDir + "/Cargo.lock";
+          lockFile = /. + dropkickInput.workspaceRoot + "/Cargo.lock";
         };
 
         pname = dropkickInput.package.name;

@@ -51,6 +51,7 @@ pub(crate) struct Args {
 
     /// Path to project directory (containing Cargo.toml)
     #[clap(default_value = ".")]
+    #[serde(skip_serializing)]
     pub(crate) project_dir: Utf8PathBuf,
 }
 
@@ -104,6 +105,7 @@ impl Args {
                     let p = self.project_dir.join(f);
                     p.exists().then_some(p)
                 }),
+            workspace_root: metadata.workspace_root,
         }
         .build(tempdir)?;
 
