@@ -4,6 +4,7 @@
 
 { config, lib, pkgs, modulesPath, ... }:
 let
+  applyPkgs = list: map (s: builtins.getAttr s pkgs) list;
   dropkickInput = lib.importJSON ./input.json;
   dropshotServer = pkgs.callPackage
     ({ rustPlatform }:
@@ -31,7 +32,8 @@ let
           (if (dropkickInput.toolchainFile != null)
           then (rust-bin.fromRustupToolchainFile (/. + dropkickInput.toolchainFile))
           else rust-bin.stable.latest.minimal)
-        ];
+        ] ++ applyPkgs dropkickInput.buildDeps;
+        buildInputs = applyPkgs dropkickInput.deps;
 
         # Disable `cargo test`.
         doCheck = false;
@@ -285,7 +287,7 @@ in
         serviceConfig.RemainAfterExit = true;
       };
 
-      environment.systemPackages = with pkgs; [ htop tree ];
+      environment.systemPackages = with pkgs; [ htop helix tree vim ] ++ applyPkgs dropkickInput.install;
     } else {
       # https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/profiles/minimal.nix
       documentation.enable = false;
