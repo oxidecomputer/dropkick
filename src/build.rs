@@ -8,7 +8,7 @@ use cargo_metadata::{MetadataCommand, Package};
 use clap::Parser;
 use fs_err::File;
 use iso9660::{DirectoryEntry, ISO9660};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::io::{Read, Seek, SeekFrom, Write};
 
 #[derive(Debug, Parser, Serialize)]
@@ -18,15 +18,6 @@ pub(crate) struct Args {
     #[clap(long)]
     pub(crate) allow_login: bool,
 
-    /// Specify which bin target to run in the image
-    #[clap(long)]
-    #[serde(skip_serializing)]
-    pub(crate) bin: Option<String>,
-
-    /// Names of Nix packages to install during build and in the login environment
-    #[clap(long = "nixpkg")]
-    pub(crate) nixpkgs: Vec<String>,
-
     /// Environment for the dropshot service (see EnvironmentFile in systemd.exec(5))
     #[clap(long)]
     pub(crate) env_file: Option<Utf8PathBuf>,
@@ -34,14 +25,6 @@ pub(crate) struct Args {
     /// Hostname the service will respond to
     #[clap(long)]
     pub(crate) hostname: String,
-
-    /// Port the service will listen on
-    #[clap(long, default_value = "8000")]
-    pub(crate) port: u16,
-
-    /// Command line arguments to the dropshot service binary
-    #[clap(long)]
-    pub(crate) run_args: Option<String>,
 
     /// Pass `--show-trace` to nix-build
     #[clap(long)]
@@ -57,6 +40,32 @@ pub(crate) struct Args {
     #[clap(default_value = ".")]
     #[serde(skip_serializing)]
     pub(crate) package_dir: Utf8PathBuf,
+
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub(crate) config: Config,
+}
+
+/// Options that can be set by command line args or by `[package.metadata.dropkick]`.
+#[derive(Debug, Default, Parser, Deserialize, Serialize)]
+#[serde(rename_all(deserialize = "kebab-case", serialize = "camelCase"))]
+pub(crate) struct Config {
+    /// Specify which bin target to run in the image
+    #[clap(long)]
+    #[serde(skip_serializing)]
+    pub(crate) bin: Option<String>,
+
+    /// Names of Nix packages to install during build and in the login environment
+    #[clap(long = "nixpkg")]
+    pub(crate) nixpkgs: Vec<String>,
+
+    /// Port the service will listen on
+    #[clap(long)]
+    pub(crate) port: Option<u16>,
+
+    /// Command line arguments to the dropshot service binary
+    #[clap(long)]
+    pub(crate) run_args: Option<String>,
 }
 
 pub(crate) struct Output {
@@ -79,12 +88,14 @@ impl Args {
             .current_dir(&self.package_dir)
             .exec()
             .context("failed to run `cargo metadata`")?;
-        let package = metadata
+        let mut package = metadata
             .root_package()
             .context(
                 "cannot determine root package (does PACKAGE_DIR/Cargo.toml have a [package] entry?)",
             )?
             .clone();
+        self.config = Config::from_metadata(&mut package.metadata)?.update(self.config);
+        self.config.port = self.config.port.or(Some(8000));
         if package.name == "dropkick" {
             log::warn!("you are attempting to build a dropkick image out of dropkick");
         }
@@ -92,7 +103,7 @@ impl Args {
             .targets
             .iter()
             .filter(|t| t.kind.iter().any(|k| k == "bin"));
-        let bin = match &self.bin {
+        let bin = match &self.config.bin {
             Some(bin) => bin_iter
                 .find(|t| &t.name == bin)
                 .with_context(|| format!("no bin target named {}", bin))?,
@@ -156,6 +167,30 @@ impl Args {
             package,
             truncated_hash,
         })
+    }
+}
+
+impl Config {
+    fn update(self, mut other: Config) -> Config {
+        Config {
+            bin: other.bin.or(self.bin),
+            nixpkgs: {
+                other.nixpkgs.extend(self.nixpkgs);
+                other.nixpkgs
+            },
+            port: other.port.or(self.port),
+            run_args: other.run_args.or(self.run_args),
+        }
+    }
+
+    fn from_metadata(metadata: &mut serde_json::Value) -> Result<Config> {
+        // Take the "dropkick" metadata out of the whole metadata value. If it
+        // doesn't exist, return `Config::default()`.
+        if let Some(metadata) = metadata.get_mut("dropkick") {
+            Ok(serde_json::from_value(metadata.take())?)
+        } else {
+            Ok(Config::default())
+        }
     }
 }
 
