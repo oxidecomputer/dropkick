@@ -8,8 +8,6 @@ use cargo_metadata::Package;
 use serde::Serialize;
 use std::process::Command;
 
-const NIXOS_VERSION: &str = "22.11";
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct NixosBuilder<'a> {
@@ -22,40 +20,27 @@ pub(crate) struct NixosBuilder<'a> {
     pub(crate) workspace_root: Utf8PathBuf,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Input<'a> {
-    #[serde(flatten)]
-    builder: &'a NixosBuilder<'a>,
-
-    nixos_version: &'static str,
-}
-
 impl NixosBuilder<'_> {
     pub(crate) fn build(&self, tempdir: &Utf8Path) -> Result<Utf8PathBuf> {
-        let config_path = tempdir.join("config.nix");
         let json_path = tempdir.join("input.json");
         let result_path = tempdir.join("result");
 
-        std::fs::write(&config_path, include_str!("config.nix"))?;
-        std::fs::write(
-            json_path,
-            serde_json::to_vec(&Input {
-                builder: self,
-                nixos_version: NIXOS_VERSION,
-            })?,
-        )?;
+        std::fs::write(tempdir.join("flake.nix"), include_str!("flake.nix"))?;
+        std::fs::write(tempdir.join("flake.lock"), include_str!("flake.lock"))?;
+        std::fs::write(json_path, serde_json::to_vec(&self)?)?;
 
         log::info!("building image");
-        let status = Command::new("nix-build")
+        let status = Command::new("nix")
             .args([
-                "<nixpkgs/nixos>",
-                "--argstr",
-                "system",
-                "x86_64-linux",
-                "-A",
-                "config.system.build.isoImage",
+                "--extra-experimental-features",
+                "nix-command",
+                "--extra-experimental-features",
+                "flakes",
+                "build",
+                "--impure",
             ])
+            // TODO: allow specifying a nixpkgs commit instead of this
+            .args(["--update-input", "nixpkgs"])
             .args(if self.build_args.show_nix_trace {
                 &["--show-trace"][..]
             } else {
@@ -63,10 +48,10 @@ impl NixosBuilder<'_> {
             })
             .arg("--out-link")
             .arg(&result_path)
-            .arg("-I")
-            .arg(format!("nixpkgs=channel:nixos-{}", NIXOS_VERSION))
-            .arg("-I")
-            .arg(format!("nixos-config={}", config_path))
+            .arg(format!(
+                "path:{}#nixosConfigurations.dropkick.config.system.build.isoImage",
+                tempdir
+            ))
             .status()?;
         ensure!(status.success(), "nix-build failed with {}", status);
 

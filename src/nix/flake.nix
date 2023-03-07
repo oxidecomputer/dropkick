@@ -2,9 +2,24 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.11";
+  };
+
+  outputs = { self, nixpkgs }:
+    let
+      system = "x86_64-linux";
+    in
+    {
+      nixosConfigurations.dropkick = nixpkgs.lib.nixosSystem {
+        inherit system;
+        modules = [
+          (
+
+# temporarily not indented
 { config, lib, pkgs, modulesPath, ... }:
 let
-  applyPkgs = list: map (s: builtins.getAttr s pkgs) list;
   dropkickInput = lib.importJSON ./input.json;
   nixpkgsInput = map (s: builtins.getAttr s pkgs) dropkickInput.nixpkgs;
   dropshotServer = pkgs.callPackage
@@ -49,7 +64,7 @@ in
 
   config = lib.recursiveUpdate
     {
-      system.stateVersion = dropkickInput.nixosVersion;
+      system.stateVersion = lib.trivial.release;
 
       systemd.services.dropshot-server = {
         wantedBy = [ "multi-user.target" ];
@@ -298,3 +313,10 @@ in
       documentation.nixos.enable = false;
     });
 }
+
+          )
+        ];
+      };
+    };
+}
+
