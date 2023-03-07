@@ -13,6 +13,8 @@ import { autoName, LinuxMachineImage } from "./util";
  * Configuration for DropkickInstance
  */
 export interface DropkickInterfaceProps {
+  instanceRoleName?: string;
+  instanceRolePath?: string;
   instanceType: ec2.InstanceType;
   sshKeyName?: string;
 }
@@ -207,10 +209,22 @@ export class DropkickInstance extends Construct {
       networkInterfaceId: serviceInterface.ref,
     });
 
+    // Create an instance role in the same way `new ec2.Instance()` does, but
+    // expose the name and path parameters from `props`.
+    const role =
+      props.instanceRoleName || props.instanceRolePath
+        ? new iam.Role(this, "InstanceRole", {
+            assumedBy: new iam.ServicePrincipal("ec2.amazonaws.com"),
+            path: props.instanceRolePath,
+            roleName: props.instanceRoleName,
+          })
+        : undefined;
+
     this.instance = autoName(
       new ec2.Instance(this, "Resource", {
         instanceType: props.instanceType,
         machineImage: new LinuxMachineImage(imageId),
+        role,
         vpc: this.vpc,
         keyName: props.sshKeyName,
         requireImdsv2: true,
