@@ -23,17 +23,9 @@ pub(crate) struct Args {
     #[serde(skip_serializing)]
     pub(crate) bin: Option<String>,
 
-    /// Names of Nix packages that are runtime dependencies for the service
-    #[clap(long = "dep")]
-    pub(crate) deps: Vec<String>,
-
-    /// Names of Nix packages that are build-time dependencies for the service
-    #[clap(long = "build-dep")]
-    pub(crate) build_deps: Vec<String>,
-
-    /// Names of Nix packages to be installed in the system environment
-    #[clap(long)]
-    pub(crate) install: Vec<String>,
+    /// Names of Nix packages to install during build and in the login environment
+    #[clap(long = "nixpkg")]
+    pub(crate) nixpkgs: Vec<String>,
 
     /// Environment for the dropshot service (see EnvironmentFile in systemd.exec(5))
     #[clap(long)]
