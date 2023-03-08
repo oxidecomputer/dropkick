@@ -8,9 +8,10 @@
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
+    nixie-tubes.url = "github:oxidecomputer/nixie-tubes";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, rust-overlay }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, rust-overlay, nixie-tubes }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { };
@@ -54,6 +55,8 @@
       nixosConfigurations.dropkick = nixpkgs.lib.nixosSystem {
         inherit system;
         modules = [
+          nixie-tubes.nixosModules.ssh-init
+
           ({ config, lib, pkgs, modulesPath, ... }:
             {
               imports = [
@@ -274,35 +277,10 @@
                   # Tell dhcpcd to wait for an IPv4 address, so that IMDS is reachable if we're in AWS.
                   networking.dhcpcd.wait = "ipv4";
 
-                  systemd.services.dropkick-ssh-keys = {
-                    description = "Add SSH keys from EC2 IMDS or the Oxide cidata volume";
-                    wantedBy = [ "multi-user.target" ];
-                    after = [ "network-online.target" ];
-                    wants = [ "network-online.target" ];
-                    before = [ "sshd.service" ];
-
-                    script = ''
-                      [[ -f /root/.ssh/authorized_keys ]] && exit 0
-                      umask 0077
-                      mkdir /root/.ssh
-
-                      if [[ $(${pkgs.dmidecode}/bin/dmidecode --string system-uuid) == ec2* ]]; then
-                        token=$(${pkgs.curl}/bin/curl -v --retry-all-errors --retry 5 --retry-delay 2 --fail --connect-timeout 1 \
-                          -X PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 600' http://169.254.169.254/latest/api/token)
-                        ${pkgs.curl}/bin/curl -H "X-aws-ec2-metadata-token: $token" -o /root/.ssh/authorized_keys \
-                          http://169.254.169.254/latest/meta-data/public-keys/0/openssh-key
-                      elif [[ -b /dev/disk/by-label/cidata ]]; then
-                        ${pkgs.mtools}/bin/copy -i /dev/disk/by-label/cidata ::/meta-data - \
-                          | ${pkgs.jq}/bin/jq -r '."public-keys"[]' > /root/.ssh/authorized_keys
-                      fi
-                    '';
-
-                    serviceConfig.Type = "oneshot";
-                    serviceConfig.RemainAfterExit = true;
-                  };
-
                   environment.systemPackages = with pkgs; [ htop helix tree vim ] ++ nixpkgsInput;
                 } else {
+                  services.oxide-ssh-init.enable = false;
+
                   # https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/profiles/minimal.nix
                   documentation.enable = false;
                   documentation.doc.enable = false;

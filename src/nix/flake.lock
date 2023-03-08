@@ -15,6 +15,21 @@
         "type": "github"
       }
     },
+    "nixie-tubes": {
+      "locked": {
+        "lastModified": 1678307541,
+        "narHash": "sha256-8s48Ws+eMio0ya+w3tPBjrDvALTokF7t65VUO8Y1fLI=",
+        "owner": "oxidecomputer",
+        "repo": "nixie-tubes",
+        "rev": "3e84ffd9cb6c8d189b47b55592d09d160179c0c8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxidecomputer",
+        "repo": "nixie-tubes",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1678072060,
@@ -49,6 +64,7 @@
     },
     "root": {
       "inputs": {
+        "nixie-tubes": "nixie-tubes",
         "nixpkgs": "nixpkgs",
         "nixpkgs-unstable": "nixpkgs-unstable",
         "rust-overlay": "rust-overlay"
