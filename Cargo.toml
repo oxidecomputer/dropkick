@@ -12,7 +12,7 @@ aws-sdk-ec2 = "0.24.0"
 camino = "1.1.2"
 cargo_metadata = "0.15.3"
 clap = { version = "4.1.4", features = ["derive"] }
-coldsnap = { git = "https://github.com/awslabs/coldsnap.git", rev = "bd10e4c0e52be0817b34150e7bde7cb409ec270a", version = "0.4.2" }
+coldsnap = "0.5.0"
 env_logger = "0.10.0"
 fs-err = "2.9.0"
 indicatif = "0.17.3"
