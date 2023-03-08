@@ -6,7 +6,16 @@ use anyhow::{ensure, Context, Result};
 use camino::{Utf8Path, Utf8PathBuf};
 use cargo_metadata::Package;
 use serde::Serialize;
+use serde_json::Value;
 use std::process::Command;
+
+// Flake inputs that we always want to keep up-to-date. We do this by removing their entries from
+// flake.lock before writing it back out to a file.
+// TODO: allow specifying a nixpkgs commit
+const REMOVE_FROM_FLAKE_LOCK: &[&str] = &[
+    "nixpkgs",      // ensure we have latest security backports
+    "rust-overlay", // ensure we have the current stable release / recent nightlies
+];
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -22,10 +31,28 @@ pub(crate) struct NixosBuilder {
 
 impl NixosBuilder {
     pub(crate) fn build(&self, tempdir: &Utf8Path) -> Result<Utf8PathBuf> {
+        let mut flake_lock: Value = serde_json::from_str(include_str!("flake.lock"))?;
+        if let Some(Value::Object(ref mut map)) = flake_lock.get_mut("nodes") {
+            for item in REMOVE_FROM_FLAKE_LOCK {
+                map.remove(*item);
+            }
+
+            if let Some(Value::Object(ref mut map)) =
+                map.get_mut("root").and_then(|map| map.get_mut("inputs"))
+            {
+                for item in REMOVE_FROM_FLAKE_LOCK {
+                    map.remove(*item);
+                }
+            }
+        }
+
         let result_path = tempdir.join("result");
 
         std::fs::write(tempdir.join("flake.nix"), include_str!("flake.nix"))?;
-        std::fs::write(tempdir.join("flake.lock"), include_str!("flake.lock"))?;
+        std::fs::write(
+            tempdir.join("flake.lock"),
+            serde_json::to_string(&flake_lock)?,
+        )?;
         std::fs::write(tempdir.join("input.json"), serde_json::to_vec(&self)?)?;
 
         log::info!("building image");
@@ -38,8 +65,6 @@ impl NixosBuilder {
                 "build",
                 "--impure",
             ])
-            // TODO: allow specifying a nixpkgs commit instead of this
-            .args(["--update-input", "nixpkgs"])
             .args(if self.build_args.show_nix_trace {
                 &["--show-trace"][..]
             } else {
