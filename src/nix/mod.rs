@@ -10,24 +10,23 @@ use std::process::Command;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct NixosBuilder<'a> {
+pub(crate) struct NixosBuilder {
     #[serde(flatten)]
-    pub(crate) build_args: &'a crate::build::Args,
+    pub(crate) build_args: crate::build::Args,
 
-    pub(crate) bin_name: &'a str,
-    pub(crate) package: &'a Package,
+    pub(crate) bin_name: String,
+    pub(crate) package: Package,
     pub(crate) toolchain_file: Option<Utf8PathBuf>,
     pub(crate) workspace_root: Utf8PathBuf,
 }
 
-impl NixosBuilder<'_> {
+impl NixosBuilder {
     pub(crate) fn build(&self, tempdir: &Utf8Path) -> Result<Utf8PathBuf> {
-        let json_path = tempdir.join("input.json");
         let result_path = tempdir.join("result");
 
         std::fs::write(tempdir.join("flake.nix"), include_str!("flake.nix"))?;
         std::fs::write(tempdir.join("flake.lock"), include_str!("flake.lock"))?;
-        std::fs::write(json_path, serde_json::to_vec(&self)?)?;
+        std::fs::write(tempdir.join("input.json"), serde_json::to_vec(&self)?)?;
 
         log::info!("building image");
         let status = Command::new("nix")

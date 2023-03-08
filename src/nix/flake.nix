@@ -5,55 +5,56 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.11";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    rust-overlay.url = "github:oxalica/rust-overlay";
+    rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, rust-overlay }:
     let
       system = "x86_64-linux";
+      pkgs = import nixpkgs { };
+
+      dropkickInput = pkgs.lib.importJSON ./input.json;
+      nixpkgsInput = map (s: builtins.getAttr s pkgs) dropkickInput.nixpkgs;
     in
-    {
+    rec {
+
+      packages."${system}".default =
+        let
+          pkgs = import nixpkgs { overlays = [ rust-overlay.overlays.default ]; };
+          pkgs-unstable = import nixpkgs-unstable { };
+        in
+        pkgs-unstable.rustPlatform.buildRustPackage {
+          src = pkgs.nix-gitignore.gitignoreSource [ ] (/. + dropkickInput.workspaceRoot);
+          cargoLock = {
+            lockFile = /. + dropkickInput.workspaceRoot + "/Cargo.lock";
+            allowBuiltinFetchGit = true;
+          };
+
+          pname = dropkickInput.package.name;
+          version = dropkickInput.package.version;
+
+          # Only build the binary we want.
+          cargoBuildFlags = "--bin ${dropkickInput.binName}";
+
+          nativeBuildInputs = nixpkgsInput ++ [
+            # Use a rust-toolchain(.toml) file with oxalica/rust-overlay (defined above) if we have one.
+            # If we don't, use the latest stable.
+            (if (dropkickInput.toolchainFile != null)
+            then (pkgs.rust-bin.fromRustupToolchainFile (/. + dropkickInput.toolchainFile))
+            else pkgs.rust-bin.stable.latest.minimal)
+          ];
+          buildInputs = nixpkgsInput;
+
+          # Disable `cargo test`.
+          doCheck = false;
+        };
+
       nixosConfigurations.dropkick = nixpkgs.lib.nixosSystem {
         inherit system;
         modules = [
           ({ config, lib, pkgs, modulesPath, ... }:
-            let
-              dropkickInput = lib.importJSON ./input.json;
-              nixpkgsInput = map (s: builtins.getAttr s pkgs) dropkickInput.nixpkgs;
-              dropshotServer = pkgs.callPackage
-                ({ rustPlatform }:
-                  with import <nixpkgs>
-                    {
-                      overlays = [
-                        # This is a nix overlay commonly used to select a binary Rust release (in roughly the
-                        # same way rustup does):
-                        # https://github.com/NixOS/nixpkgs/blob/master/doc/languages-frameworks/rust.section.md#using-community-rust-overlays-using-community-rust-overlays
-                        (import (fetchTarball "https://github.com/oxalica/rust-overlay/archive/master.tar.gz"))
-                      ];
-                    };
-                  rustPlatform.buildRustPackage {
-                    src = nix-gitignore.gitignoreSource [ ] (/. + dropkickInput.workspaceRoot);
-                    cargoLock = {
-                      lockFile = /. + dropkickInput.workspaceRoot + "/Cargo.lock";
-                    };
-
-                    pname = dropkickInput.package.name;
-                    version = dropkickInput.package.version;
-
-                    nativeBuildInputs = [
-                      # Use a rust-toolchain(.toml) file with oxalica/rust-overlay (defined above) if we have one.
-                      # If we don't, use the latest stable.
-                      (if (dropkickInput.toolchainFile != null)
-                      then (rust-bin.fromRustupToolchainFile (/. + dropkickInput.toolchainFile))
-                      else rust-bin.stable.latest.minimal)
-                    ] ++ nixpkgsInput;
-                    buildInputs = nixpkgsInput;
-
-                    # Disable `cargo test`.
-                    doCheck = false;
-                  }
-                )
-                { };
-            in
             {
               imports = [
                 (modulesPath + "/installer/cd-dvd/iso-image.nix")
@@ -68,7 +69,7 @@
                     after = [ "network.target" ];
                     before = [ "caddy.service" ];
                     serviceConfig = {
-                      ExecStart = "${dropshotServer}/bin/${dropkickInput.binName} ${dropkickInput.runArgs}";
+                      ExecStart = "${packages."${system}".default}/bin/${dropkickInput.binName} ${dropkickInput.runArgs}";
                       Restart = "on-failure";
 
                       # sandboxing and other general security:
@@ -312,6 +313,7 @@
             })
         ];
       };
+
     };
 }
 

@@ -37,8 +37,15 @@ enum Command {
         #[clap(flatten)]
         build_args: crate::build::Args,
     },
+
+    #[clap(hide = true)]
+    DumpNixInput {
+        #[clap(flatten)]
+        build_args: crate::build::Args,
+    },
 }
 
+#[allow(clippy::too_many_lines)]
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::Builder::from_env(Env::default().default_filter_or("dropkick=info")).init();
@@ -143,6 +150,10 @@ async fn main() -> Result<()> {
                     .context("no image ID in ec2:RegisterImage response")?
             );
 
+            Ok(())
+        }
+        Command::DumpNixInput { build_args } => {
+            println!("{}", build_args.nix_input_json()?);
             Ok(())
         }
     }

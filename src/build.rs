@@ -47,7 +47,7 @@ pub(crate) struct Args {
 }
 
 /// Options that can be set by command line args or by `[package.metadata.dropkick]`.
-#[derive(Debug, Default, Parser, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, Parser, Deserialize, Serialize)]
 #[serde(rename_all(deserialize = "kebab-case", serialize = "camelCase"))]
 pub(crate) struct Config {
     /// Specify which bin target to run in the image
@@ -76,13 +76,11 @@ pub(crate) struct Output {
 }
 
 impl Args {
-    pub(crate) fn build(mut self, tempdir: impl AsRef<Utf8Path>) -> Result<Output> {
+    fn into_nixos_builder(mut self) -> Result<crate::nix::NixosBuilder> {
         self.package_dir = self
             .package_dir
             .canonicalize_utf8()
             .with_context(|| format!("failed to canonicalize {}", self.package_dir))?;
-
-        let tempdir = tempdir.as_ref();
 
         let metadata = MetadataCommand::new()
             .current_dir(&self.package_dir)
@@ -117,14 +115,24 @@ impl Args {
             }
         };
 
-        let result_path = crate::nix::NixosBuilder {
-            build_args: &self,
-            bin_name: &bin.name,
-            package: &package,
+        Ok(crate::nix::NixosBuilder {
+            bin_name: bin.name.clone(),
+            package,
             toolchain_file: find_toolchain_file(&self.package_dir, &metadata.workspace_root),
             workspace_root: metadata.workspace_root,
-        }
-        .build(tempdir)?;
+
+            build_args: self,
+        })
+    }
+
+    pub(crate) fn nix_input_json(self) -> Result<String> {
+        Ok(serde_json::to_string(&self.into_nixos_builder()?)?)
+    }
+
+    pub(crate) fn build(self, tempdir: impl AsRef<Utf8Path>) -> Result<Output> {
+        let tempdir = tempdir.as_ref();
+        let nixos_builder = self.into_nixos_builder()?;
+        let result_path = nixos_builder.build(tempdir)?;
 
         let truncated_hash = result_path
             .file_name()
@@ -164,7 +172,7 @@ impl Args {
         Ok(Output {
             image: final_image_path,
             nixos_version,
-            package,
+            package: nixos_builder.package,
             truncated_hash,
         })
     }
