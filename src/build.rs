@@ -56,6 +56,7 @@ pub(crate) struct Config {
 
     /// Names of Nix packages to install during build and in the login environment
     #[clap(long = "nixpkg")]
+    #[serde(default)]
     pub(crate) nixpkgs: Vec<String>,
 
     /// Port the service will listen on
