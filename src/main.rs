@@ -9,17 +9,17 @@ mod build;
 mod nix;
 mod tempdir;
 
-use crate::tempdir::Utf8TempDir;
 use anyhow::{Context, Result};
 use aws_sdk_ec2::model::{
     ArchitectureValues, BlockDeviceMapping, BootModeValues, EbsBlockDevice, Filter,
-    ImdsSupportValues, VolumeType,
+    ImdsSupportValues, Tag, VolumeType,
 };
 use camino::Utf8PathBuf;
 use clap::Parser;
 use coldsnap::{SnapshotUploader, SnapshotWaiter};
 use env_logger::Env;
 use indicatif::ProgressBar;
+use tempfile::NamedTempFile;
 
 #[derive(Debug, Parser)]
 enum Command {
@@ -28,7 +28,7 @@ enum Command {
         #[clap(flatten)]
         build_args: crate::build::Args,
 
-        /// Output path for built image
+        /// Output path for built image (if not specified, the output is deleted)
         output_path: Option<Utf8PathBuf>,
     },
 
@@ -55,29 +55,29 @@ async fn main() -> Result<()> {
             build_args,
             output_path,
         } => {
-            let tempdir = if let Some(output_path) = &output_path {
-                Utf8TempDir::new_in(output_path.parent().context("output path has no parent")?)?
+            let (mut file, persist) = if let Some(output_path) = &output_path {
+                let (file, temp_path) = NamedTempFile::new_in(
+                    output_path.parent().context("output path has no parent")?,
+                )?
+                .into_parts();
+                (file, Some((temp_path, output_path)))
             } else {
-                Utf8TempDir::new()?
+                (tempfile::tempfile()?, None)
             };
-            let output = build_args.build(&tempdir)?;
-            if let Some(output_path) = &output_path {
-                fs_err::rename(output.image, output_path)?;
+            build_args.create_iso(&mut file)?;
+            if let Some((temp_path, output_path)) = persist {
+                temp_path.persist(output_path)?;
             }
             Ok(())
         }
         Command::CreateEc2Image { build_args } => {
-            let tempdir = Utf8TempDir::new()?;
-            let output = build_args.build(&tempdir)?;
-            let image_name_suffix = format!(
-                "-{}-nixos{}-{}",
-                output.package.version, output.nixos_version, output.truncated_hash
-            );
+            let (mut file, temp_path) = NamedTempFile::new()?.into_parts();
+            let metadata = build_args.create_iso(&mut file)?;
             let image_name = format!(
-                "{name:.len$}{suffix}",
-                name = output.package.name,
-                len = 128 - image_name_suffix.len(),
-                suffix = image_name_suffix
+                "{name:.len$}-{store_hash}",
+                name = metadata.package.name,
+                store_hash = metadata.store_hash,
+                len = 128 - (32 + 1),
             );
             log::info!("image name: {}", image_name);
 
@@ -102,7 +102,7 @@ async fn main() -> Result<()> {
             log::info!("uploading EC2 snapshot");
             let snapshot_id = SnapshotUploader::new(ebs_client)
                 .upload_from_file(
-                    &output.image,
+                    &temp_path,
                     None,
                     Some(&image_name),
                     Some(ProgressBar::new(0)),
@@ -143,13 +143,34 @@ async fn main() -> Result<()> {
                 .imds_support(ImdsSupportValues::V20)
                 .send()
                 .await?;
-            println!(
-                "{}",
-                response
-                    .image_id()
-                    .context("no image ID in ec2:RegisterImage response")?
-            );
+            let image_id = response
+                .image_id()
+                .context("no image ID in ec2:RegisterImage response")?;
 
+            let mut tag_request = ec2_client.create_tags().resources(image_id);
+            macro_rules! tag {
+                ($key:expr, $value:expr) => {
+                    tag_request = tag_request.tags(
+                        Tag::builder()
+                            .key(format!("dropkick:{}", $key))
+                            .value($value)
+                            .build(),
+                    )
+                };
+            }
+            tag!("package.name", metadata.package.name);
+            tag!("package.version", metadata.package.version.to_string());
+            tag!("store_hash", metadata.store_hash);
+            for (flake_name, metadata) in metadata.flake_revs {
+                tag!(
+                    format!("flake.{}.last_modified", flake_name),
+                    metadata.last_modified.to_string()
+                );
+                tag!(format!("flake.{}.rev", flake_name), metadata.rev);
+            }
+            tag_request.send().await?;
+
+            println!("{}", image_id);
             Ok(())
         }
         Command::DumpNixInput { build_args } => {

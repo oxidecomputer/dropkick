@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[profile.release]
+debug = 1
+
 [dependencies]
 anyhow = { version = "1.0.68", features = ["backtrace"] }
 aws-config = "0.54.1"
@@ -16,7 +19,6 @@ coldsnap = "0.5.0"
 env_logger = "0.10.0"
 fs-err = "2.9.0"
 indicatif = "0.17.3"
-iso9660 = "0.1.0"
 log = "0.4.17"
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.93"

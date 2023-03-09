@@ -4,7 +4,6 @@
 
 use camino::{FromPathError, Utf8Path, Utf8PathBuf};
 use std::io;
-use std::path::Path;
 use tempfile::TempDir;
 
 #[derive(Debug)]
@@ -20,10 +19,8 @@ impl Utf8TempDir {
             .map_err(FromPathError::into_io_error)
     }
 
-    pub(crate) fn new_in(dir: impl AsRef<Path>) -> io::Result<Utf8TempDir> {
-        TempDir::new_in(dir)?
-            .try_into()
-            .map_err(FromPathError::into_io_error)
+    pub(crate) fn path(&self) -> &Utf8Path {
+        &self.utf8
     }
 }
 

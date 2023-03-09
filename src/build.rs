@@ -2,12 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use anyhow::{bail, ensure, Context, Result};
+use crate::nix::Metadata;
+use anyhow::{ensure, Context, Result};
 use camino::{Utf8Path, Utf8PathBuf};
-use cargo_metadata::{MetadataCommand, Package};
+use cargo_metadata::MetadataCommand;
 use clap::Parser;
-use fs_err::File;
-use iso9660::{DirectoryEntry, ISO9660};
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Seek, SeekFrom, Write};
 
@@ -68,13 +67,6 @@ pub(crate) struct Config {
     pub(crate) run_args: Option<String>,
 }
 
-pub(crate) struct Output {
-    pub(crate) image: Utf8PathBuf,
-    pub(crate) nixos_version: String,
-    pub(crate) package: Package,
-    pub(crate) truncated_hash: String,
-}
-
 impl Args {
     fn into_nixos_builder(mut self) -> Result<crate::nix::NixosBuilder> {
         self.package_dir = self
@@ -129,52 +121,19 @@ impl Args {
         Ok(serde_json::to_string(&self.into_nixos_builder()?)?)
     }
 
-    pub(crate) fn build(self, tempdir: impl AsRef<Utf8Path>) -> Result<Output> {
-        let tempdir = tempdir.as_ref();
+    pub(crate) fn create_iso(self, writer: &mut std::fs::File) -> Result<Metadata> {
         let nixos_builder = self.into_nixos_builder()?;
-        let result_path = nixos_builder.build(tempdir)?;
-
-        let truncated_hash = result_path
-            .file_name()
-            .and_then(|s| s.get(0..32))
-            .context("failed to get truncated nix store hash for path")?
-            .into();
-        let iso_image = result_path.join("iso").join("nixos.iso");
-
-        let nixos_version = {
-            let iso9660 = ISO9660::new(File::open(&iso_image)?).context("failed to read ISO")?;
-            if let Some(DirectoryEntry::File(file)) = iso9660
-                .open("version.txt")
-                .context("failed to open version.txt")?
-            {
-                let mut s = String::new();
-                file.read()
-                    .read_to_string(&mut s)
-                    .context("failed to read version.txt")?;
-                s.trim().to_owned()
-            } else {
-                bail!("version.txt is not a file in the ISO");
-            }
-        };
-
-        let final_image_path = tempdir.join("nixos.img");
-        let mut final_image = File::create(&final_image_path)?;
-        std::io::copy(&mut File::open(iso_image)?, &mut final_image)?;
+        let metadata = nixos_builder.build(writer)?;
 
         // append an empty ext4 filesystem to the image (see notes about /persist in config.nix)
         sparse_copy(
             &mut zstd::Decoder::new(include_bytes!("fs/ext4.zst").as_slice())?,
-            &mut final_image,
+            writer,
         )?;
-        let len = final_image.stream_position()?;
-        final_image.set_len(len)?;
+        let len = writer.stream_position()?;
+        writer.set_len(len)?;
 
-        Ok(Output {
-            image: final_image_path,
-            nixos_version,
-            package: nixos_builder.package,
-            truncated_hash,
-        })
+        Ok(metadata)
     }
 }
 
