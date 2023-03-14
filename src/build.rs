@@ -178,7 +178,7 @@ fn find_toolchain_file(package_dir: &Utf8Path, workspace_root: &Utf8Path) -> Opt
             if !dir.starts_with(workspace_root) {
                 break;
             }
-            if let Some(path) = inner(package_dir) {
+            if let Some(path) = inner(dir) {
                 return Some(path);
             }
         }
