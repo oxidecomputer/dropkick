@@ -166,7 +166,9 @@ async fn main() -> Result<()> {
                     format!("flake.{}.last_modified", flake_name),
                     metadata.last_modified.to_string()
                 );
-                tag!(format!("flake.{}.rev", flake_name), metadata.rev);
+                if let Some(rev) = metadata.rev {
+                    tag!(format!("flake.{}.rev", flake_name), rev);
+                }
             }
             tag_request.send().await?;
 

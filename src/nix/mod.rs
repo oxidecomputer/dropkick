@@ -45,7 +45,8 @@ pub(crate) struct Metadata {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct FlakeMetadata {
     pub(crate) last_modified: u64,
-    pub(crate) rev: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) rev: Option<String>,
 }
 
 impl NixosBuilder {
