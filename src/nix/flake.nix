@@ -13,7 +13,7 @@
     nixie-tubes.url = "github:oxidecomputer/nixie-tubes";
   };
 
-  outputs = { nixpkgs, crane, rust-overlay, nixie-tubes, ... }:
+  outputs = { nixpkgs, rust-overlay, crane, nixie-tubes, ... }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { };
