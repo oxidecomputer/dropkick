@@ -5,13 +5,15 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.11";
-    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
+    crane.url = "github:ipetkov/crane";
+    crane.inputs.nixpkgs.follows = "nixpkgs";
+    crane.inputs.rust-overlay.follows = "rust-overlay";
     nixie-tubes.url = "github:oxidecomputer/nixie-tubes";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, rust-overlay, nixie-tubes }:
+  outputs = { nixpkgs, crane, rust-overlay, nixie-tubes, ... }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { };
@@ -23,33 +25,30 @@
 
       packages."${system}".default =
         let
-          pkgs = import nixpkgs { overlays = [ rust-overlay.overlays.default ]; };
-          pkgs-unstable = import nixpkgs-unstable { };
-        in
-        pkgs-unstable.rustPlatform.buildRustPackage {
-          src = pkgs.nix-gitignore.gitignoreSource [ ] (/. + dropkickInput.workspaceRoot);
-          cargoLock = {
-            lockFile = /. + dropkickInput.workspaceRoot + "/Cargo.lock";
-            allowBuiltinFetchGit = true;
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [
+              (import rust-overlay)
+            ];
           };
+          toolchain =
+            if (dropkickInput.toolchainFile == null)
+            then pkgs.rust-bin.stable.latest.minimal
+            else (pkgs.rust-bin.fromRustupToolchainFile (/. + dropkickInput.toolchainFile));
+          crane' = (crane.mkLib pkgs).overrideToolchain toolchain;
+        in
+        crane'.buildPackage {
+          src = pkgs.nix-gitignore.gitignoreSource [ ] (/. + dropkickInput.workspaceRoot);
 
           pname = dropkickInput.package.name;
           version = dropkickInput.package.version;
 
           # Only build the binary we want.
-          cargoBuildFlags = "--bin ${dropkickInput.binName}";
-
-          nativeBuildInputs = nixpkgsInput ++ [
-            # Use a rust-toolchain(.toml) file with oxalica/rust-overlay (defined above) if we have one.
-            # If we don't, use the latest stable.
-            (if (dropkickInput.toolchainFile != null)
-            then (pkgs.rust-bin.fromRustupToolchainFile (/. + dropkickInput.toolchainFile))
-            else pkgs.rust-bin.stable.latest.minimal)
-          ];
-          buildInputs = nixpkgsInput;
-
-          # Disable `cargo test`.
+          cargoExtraArgs = "--bin ${dropkickInput.binName}";
           doCheck = false;
+
+          nativeBuildInputs = nixpkgsInput;
+          buildInputs = nixpkgsInput;
         };
 
       nixosConfigurations.dropkick = nixpkgs.lib.nixosSystem {
