@@ -66,9 +66,15 @@
                 {
                   system.stateVersion = lib.trivial.release;
 
+                  # If our service needs network-online.target, it almost
+                  # certainly needs IPv4. (In EC2, IPv6 seems to come up first;
+                  # this is also necessary to get anything from IMDS.)
+                  networking.dhcpcd.wait = "ipv4";
+
                   systemd.services.dropshot-server = {
                     wantedBy = [ "multi-user.target" ];
-                    after = [ "network.target" ];
+                    after = [ "network-online.target" ];
+                    wants = [ "network-online.target" ];
                     before = [ "caddy.service" ];
                     serviceConfig = {
                       ExecStart = "${packages."${system}".default}/bin/${dropkickInput.binName} ${dropkickInput.runArgs}";
@@ -272,9 +278,6 @@
                       { path = "/persist/etc/ssh/ssh_host_ed25519_key"; type = "ed25519"; }
                     ];
                   };
-
-                  # Tell dhcpcd to wait for an IPv4 address, so that IMDS is reachable if we're in AWS.
-                  networking.dhcpcd.wait = "ipv4";
 
                   environment.systemPackages = with pkgs; [ htop helix tree vim ] ++ nixpkgsInput;
                 } else {
