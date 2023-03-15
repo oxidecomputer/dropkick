@@ -87,6 +87,7 @@ impl Args {
             .clone();
         self.config = Config::from_metadata(&mut package.metadata)?.update(self.config);
         self.config.port = self.config.port.or(Some(8000));
+        self.config.run_args = self.config.run_args.or(Some(String::new()));
         if package.name == "dropkick" {
             log::warn!("you are attempting to build a dropkick image out of dropkick");
         }
