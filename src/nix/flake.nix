@@ -73,6 +73,7 @@
                     serviceConfig = {
                       ExecStart = "${packages."${system}".default}/bin/${dropkickInput.binName} ${dropkickInput.runArgs}";
                       Restart = "on-failure";
+                      RestartSec="2s";
 
                       # sandboxing and other general security:
                       # (see systemd.exec(5) and `systemd-analyze security dropshot-server.service`)
