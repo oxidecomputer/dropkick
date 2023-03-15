@@ -44,7 +44,7 @@
           version = dropkickInput.package.version;
 
           # Only build the binary we want.
-          cargoExtraArgs = "--bin ${dropkickInput.binName}";
+          cargoExtraArgs = "--package ${dropkickInput.package.name}";
           doCheck = false;
 
           nativeBuildInputs = nixpkgsInput;
