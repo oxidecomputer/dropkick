@@ -10,10 +10,12 @@ mod ec2;
 mod nix;
 mod tempdir;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
+use aws_sdk_cloudformation::model::{Capability, Parameter, StackStatus};
 use camino::Utf8PathBuf;
 use clap::Parser;
 use env_logger::Env;
+use std::time::Duration;
 use tempfile::NamedTempFile;
 
 #[derive(Debug, Parser)]
@@ -31,6 +33,15 @@ enum Command {
     CreateEc2Image {
         #[clap(flatten)]
         build_args: crate::build::Args,
+    },
+
+    /// Deploy a new image to an existing CloudFormation stack
+    DeployEc2Image {
+        #[clap(flatten)]
+        build_args: crate::build::Args,
+
+        /// CloudFormation stack name
+        stack_name: String,
     },
 
     #[clap(hide = true)]
@@ -70,6 +81,62 @@ async fn main() -> Result<()> {
             let image_id = build_args.create_ec2_image(&config).await?;
             println!("{}", image_id);
             Ok(())
+        }
+        Command::DeployEc2Image {
+            build_args,
+            stack_name,
+        } => {
+            let config = aws_config::load_from_env().await;
+            let image_id = build_args.create_ec2_image(&config).await?;
+            log::info!("image ID: {}", image_id);
+
+            let client = aws_sdk_cloudformation::Client::new(&config);
+            client
+                .update_stack()
+                .stack_name(&stack_name)
+                .use_previous_template(true)
+                // The `@oxide/dropkick-cdk` construct creates an IAM instance
+                // role no matter what, so we always need this capability.
+                .capabilities(Capability::CapabilityIam)
+                .parameters(
+                    Parameter::builder()
+                        .parameter_key("DropkickImageId")
+                        .parameter_value(image_id)
+                        .build(),
+                )
+                .send()
+                .await?;
+            log::info!("stack update in progress, waiting for result");
+            // https://github.com/boto/botocore/blob/5d22dbbb9e8d29e2bd43146df6e3954a7a74a44c/botocore/data/cloudformation/2010-05-15/waiters-2.json#L125
+            // waiting for up to an hour seems ridiculous for dropkick stacks,
+            // so let's do max 15 minutes, 15 second interval = 60 attempts
+            for _ in 0..60 {
+                tokio::time::sleep(Duration::from_secs(15)).await;
+                let response = client
+                    .describe_stacks()
+                    .stack_name(&stack_name)
+                    .send()
+                    .await?;
+                let status = response
+                    .stacks()
+                    .and_then(|s| s.first())
+                    .context("no stacks returned in cloudformation:DescribeStacks")?
+                    .stack_status()
+                    .context("no stack status")?;
+                match status {
+                    StackStatus::UpdateComplete => {
+                        log::info!("stack updated successfully");
+                        return Ok(());
+                    }
+                    StackStatus::UpdateFailed
+                    | StackStatus::UpdateRollbackFailed
+                    | StackStatus::UpdateRollbackComplete => {
+                        bail!("stack update failed: {:?}", status);
+                    }
+                    _ => {}
+                }
+            }
+            bail!("timed out waiting for stack update");
         }
         Command::DumpNixInput { build_args } => {
             println!("{}", build_args.nix_input_json()?);

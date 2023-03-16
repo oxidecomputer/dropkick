@@ -10,6 +10,7 @@ debug = 1
 [dependencies]
 anyhow = { version = "1.0.68", features = ["backtrace"] }
 aws-config = "0.54.1"
+aws-sdk-cloudformation = "0.24.0"
 aws-sdk-ebs = "0.24.0"
 aws-sdk-ec2 = "0.24.0"
 camino = "1.1.2"
