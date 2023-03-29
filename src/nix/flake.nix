@@ -23,33 +23,37 @@
     in
     rec {
 
-      packages."${system}".default =
-        let
-          pkgs = import nixpkgs {
-            inherit system;
-            overlays = [
-              (import rust-overlay)
-            ];
+      packages."${system}" = {
+        default =
+          let
+            pkgs = import nixpkgs {
+              inherit system;
+              overlays = [
+                (import rust-overlay)
+              ];
+            };
+            toolchain =
+              if (dropkickInput.toolchainFile == null)
+              then pkgs.rust-bin.stable.latest.minimal
+              else (pkgs.rust-bin.fromRustupToolchainFile (/. + dropkickInput.toolchainFile));
+            crane' = (crane.mkLib pkgs).overrideToolchain toolchain;
+          in
+          crane'.buildPackage {
+            src = pkgs.nix-gitignore.gitignoreSource [ ] (/. + dropkickInput.workspaceRoot);
+
+            pname = dropkickInput.package.name;
+            version = dropkickInput.package.version;
+
+            # Only build the binary we want.
+            cargoExtraArgs = "--package ${dropkickInput.package.name}";
+            doCheck = false;
+
+            nativeBuildInputs = nixpkgsInput;
+            buildInputs = nixpkgsInput;
           };
-          toolchain =
-            if (dropkickInput.toolchainFile == null)
-            then pkgs.rust-bin.stable.latest.minimal
-            else (pkgs.rust-bin.fromRustupToolchainFile (/. + dropkickInput.toolchainFile));
-          crane' = (crane.mkLib pkgs).overrideToolchain toolchain;
-        in
-        crane'.buildPackage {
-          src = pkgs.nix-gitignore.gitignoreSource [ ] (/. + dropkickInput.workspaceRoot);
 
-          pname = dropkickInput.package.name;
-          version = dropkickInput.package.version;
-
-          # Only build the binary we want.
-          cargoExtraArgs = "--package ${dropkickInput.package.name}";
-          doCheck = false;
-
-          nativeBuildInputs = nixpkgsInput;
-          buildInputs = nixpkgsInput;
-        };
+        caddy = pkgs.callPackage ./caddy { };
+      };
 
       nixosConfigurations.dropkick = nixpkgs.lib.nixosSystem {
         inherit system;
@@ -110,6 +114,7 @@
 
                   services.caddy = {
                     enable = true;
+                    package = packages."${system}".caddy;
                     email = "iliana@oxide.computer";
 
                     # Set up reverse proxy.

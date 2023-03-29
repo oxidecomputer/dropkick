@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::tempdir::Utf8TempDir;
 use anyhow::{ensure, Context, Result};
 use camino::Utf8PathBuf;
 use cargo_metadata::Package;
@@ -12,7 +13,23 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::process::Command;
 
-use crate::tempdir::Utf8TempDir;
+macro_rules! include_all {
+    ( $($path:expr),* $(,)? ) => {
+        &[
+            $(
+                ($path, include_bytes!($path))
+            ),*
+        ]
+    };
+}
+
+const NIX_ENV: &[(&str, &[u8])] = include_all![
+    "caddy/default.nix",
+    "caddy/go.mod",
+    "caddy/go.sum",
+    "caddy/main.go",
+    "flake.nix",
+];
 
 // Flake inputs that we always want to keep up-to-date. We do this by removing their entries from
 // flake.lock before writing it back out to a file.
@@ -68,7 +85,10 @@ impl NixosBuilder {
 
         let result_path = tempdir.path().join("result");
 
-        std::fs::write(tempdir.path().join("flake.nix"), include_str!("flake.nix"))?;
+        std::fs::create_dir(tempdir.path().join("caddy"))?;
+        for (path, data) in NIX_ENV {
+            std::fs::write(tempdir.path().join(path), data)?;
+        }
         std::fs::write(&flake_lock_path, serde_json::to_string(&flake_lock)?)?;
         std::fs::write(
             tempdir.path().join("input.json"),
