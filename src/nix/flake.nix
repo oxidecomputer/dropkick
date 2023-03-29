@@ -267,10 +267,14 @@
                   systemd.services."serial-getty@ttyS0".enable = true;
 
                   # https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/profiles/minimal.nix
+                  documentation.doc.enable = false;
+                  documentation.info.enable = false;
                   fonts.fontconfig.enable = false;
                   programs.command-not-found.enable = false;
+                  programs.less.lessopen = null;
                   services.chrony.enable = true;
                   services.resolved.enable = false;
+                  system.disableInstallerTools = true;
                 }
                 (if dropkickInput.allowLogin then {
                   services.openssh = {
@@ -290,8 +294,6 @@
 
                   # https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/profiles/minimal.nix
                   documentation.enable = false;
-                  documentation.doc.enable = false;
-                  documentation.info.enable = false;
                   documentation.man.enable = false;
                   documentation.nixos.enable = false;
                 });
@@ -301,4 +303,3 @@
 
     };
 }
-
