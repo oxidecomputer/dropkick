@@ -199,9 +199,6 @@
 
                   isoImage.appendToMenuLabel = "";
                   isoImage.makeEfiBootable = true;
-                  # `makeUsbBootable` sets up the GPT label with the EFI system partition, which is necessary to
-                  # boot if a CD-ROM drive isn't being emulated.
-                  isoImage.makeUsbBootable = true;
                   isoImage.squashfsCompression = "zstd -Xcompression-level 3";
 
                   # Persistent storage setup.
@@ -220,11 +217,14 @@
                   # to split the disk into a "bootiso" device and "persist" device.
                   boot.initrd.postDeviceCommands = ''
                     dropkick_dmsetup() {
-                        local isopart isodisk isodisksz isopartend
-                        isopart=$(blkid -t TYPE=iso9660 -o device)
-                        isodisk=/dev/$(basename "$(readlink -f "/sys/class/block/$(basename "$isopart")/..")")
+                        local isodisk isodisksz isopartend
+                        isodisk=$(blkid -t TYPE=iso9660 -o device)
                         isodisksz=$(blockdev --getsz "$isodisk")
-                        isopartend=$(blockdev --getsz "$isopart")
+                        # 0x8000 is the start of the Primary Volume Descriptor.
+                        # At offset 0x50 is the volume space size (a 32-bit
+                        # LSB integer), measured in 2048-byte logical blocks.
+                        # Multiply by 4 to get the number of 512-byte blocks.
+                        isopartend=$(( $(od -A n -t u4 -j $((0x8050)) -N 4 "$isodisk") * 4 ))
                         echo "0 $isopartend linear $isodisk 0" | dmsetup create bootiso
                         echo "0 $((isodisksz - isopartend)) linear $isodisk $isopartend" | dmsetup create persist
                     }
