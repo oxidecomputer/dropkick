@@ -284,7 +284,7 @@
                     ];
                   };
 
-                  environment.systemPackages = with pkgs; [ htop helix tree vim ] ++ nixpkgsInput;
+                  environment.systemPackages = with pkgs; [ htop tree vim ] ++ nixpkgsInput;
                 } else {
                   services.oxide-ssh-init.enable = false;
 
