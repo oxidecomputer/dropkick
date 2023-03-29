@@ -119,7 +119,7 @@ async fn main() -> Result<()> {
                     .await?;
                 let status = response
                     .stacks()
-                    .and_then(|s| s.first())
+                    .and_then(<[_]>::first)
                     .context("no stacks returned in cloudformation:DescribeStacks")?
                     .stack_status()
                     .context("no stack status")?;

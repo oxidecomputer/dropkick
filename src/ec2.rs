@@ -25,8 +25,8 @@ impl Args {
         );
         log::info!("image name: {}", image_name);
 
-        let ebs_client = aws_sdk_ebs::Client::new(&config);
-        let ec2_client = aws_sdk_ec2::Client::new(&config);
+        let ebs_client = aws_sdk_ebs::Client::new(config);
+        let ec2_client = aws_sdk_ec2::Client::new(config);
 
         if let Some(image_id) = ec2_client
             .describe_images()
