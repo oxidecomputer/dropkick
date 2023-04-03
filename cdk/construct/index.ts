@@ -2,7 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { CfnOutput, CfnParameter, Fn, Stack } from "aws-cdk-lib";
+import { CfnOutput, CfnParameter, Fn, Stack, Tags } from "aws-cdk-lib";
+import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
@@ -260,5 +261,17 @@ export class DropkickInstance extends Construct {
       }
     );
     attachment.node.addDependency(healthCheck);
+
+    // Create a DynamoDB table for durable HTTPS certificate storage.
+    const table = new dynamodb.Table(this, "CertificateTable", {
+      // See https://github.com/silinternational/certmagic-storage-dynamodb/blob/master/README.md
+      partitionKey: { name: "PrimaryKey", type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED,
+    });
+    table.grantReadWriteData(this.instanceRole);
+    // We tag the launch template (instead of the instance directly) to force
+    // instance replacement if this changes.
+    Tags.of(launchTemplate).add("dropkick:certificate-table", table.tableName);
   }
 }
