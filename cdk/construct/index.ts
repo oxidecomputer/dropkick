@@ -227,12 +227,24 @@ export class DropkickInstance extends Construct {
         role,
         vpc: this.vpc,
         keyName: props.sshKeyName,
-        requireImdsv2: true,
         securityGroup: this.serviceSecurityGroup,
         vpcSubnets: { subnets: [this.serviceSubnet] },
       })
     );
     this.instanceRole = this.instance.role;
+
+    // CloudFormation's `Instance` resource does not expose metadata options, so
+    // we must create a launch template.
+    const launchTemplate = new ec2.LaunchTemplate(this, "LaunchTemplate", {
+      instanceMetadataTags: true,
+      requireImdsv2: true,
+    });
+    // `ec2.Instance` does not directly expose launch template control, but the
+    // underlying `ec2.CfnInstance` (accessed via `.instance`) does.
+    this.instance.instance.launchTemplate = {
+      launchTemplateId: launchTemplate.launchTemplateId,
+      version: launchTemplate.latestVersionNumber,
+    };
 
     const healthCheck = new HealthCheck(this, "HealthCheck", {
       publicIp: this.instance.instancePublicIp,
