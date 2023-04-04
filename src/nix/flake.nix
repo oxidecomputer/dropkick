@@ -113,7 +113,7 @@
               enable = true;
               package = packages."${system}".caddy;
 
-              email = "iliana@oxide.computer";
+              email = "lets-encrypt@oxidecomputer.com";
               acmeCA = lib.mkIf dropkickInput.testCert "https://acme-staging-v02.api.letsencrypt.org/directory";
 
               # Set up reverse proxy.
