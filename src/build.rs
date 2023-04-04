@@ -6,7 +6,7 @@ use crate::nix::Metadata;
 use anyhow::{ensure, Context, Result};
 use camino::{Utf8Path, Utf8PathBuf};
 use cargo_metadata::MetadataCommand;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Seek, SeekFrom, Write};
 
@@ -54,6 +54,10 @@ pub(crate) struct Config {
     #[serde(skip_serializing)]
     pub(crate) bin: Option<String>,
 
+    /// Where to store certificates
+    #[clap(long)]
+    pub(crate) cert_storage: Option<CertStorage>,
+
     /// Names of Nix packages to install during build and in the login environment
     #[clap(long = "nixpkg")]
     #[serde(default)]
@@ -66,6 +70,17 @@ pub(crate) struct Config {
     /// Command line arguments to the dropshot service binary
     #[clap(long)]
     pub(crate) run_args: Option<String>,
+}
+
+#[derive(Debug, Clone, ValueEnum, Deserialize, Serialize)]
+#[serde(rename_all(deserialize = "kebab-case"))]
+pub(crate) enum CertStorage {
+    /// Store certificates on the file system. Certificates will be lost on instance replacement.
+    FileSystem,
+
+    /// Store certificates in Amazon DynamoDB. This depends on resources created by the Dropkick
+    /// CDK construct.
+    Dynamodb,
 }
 
 impl Args {
@@ -86,6 +101,7 @@ impl Args {
             )?
             .clone();
         self.config = Config::from_metadata(&mut package.metadata)?.update(self.config);
+        self.config.cert_storage = self.config.cert_storage.or(Some(CertStorage::FileSystem));
         self.config.port = self.config.port.or(Some(8000));
         self.config.run_args = self.config.run_args.or(Some(String::new()));
         if package.name == "dropkick" {
@@ -143,6 +159,7 @@ impl Config {
     fn update(self, mut other: Config) -> Config {
         Config {
             bin: other.bin.or(self.bin),
+            cert_storage: other.cert_storage.or(self.cert_storage),
             nixpkgs: {
                 other.nixpkgs.extend(self.nixpkgs);
                 other.nixpkgs

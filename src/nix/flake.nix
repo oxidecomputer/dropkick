@@ -19,6 +19,7 @@
       pkgs = import nixpkgs { };
 
       dropkickInput = pkgs.lib.importJSON ./input.json;
+      dynamodbStorage = dropkickInput.certStorage == "Dynamodb";
       nixpkgsInput = map (s: builtins.getAttr s pkgs) dropkickInput.nixpkgs;
     in
     rec {
@@ -121,7 +122,6 @@
                 tls {
                   on_demand
                 }
-
                 reverse_proxy :${toString dropkickInput.port}
               '';
 
@@ -134,9 +134,11 @@
                   interval 2m
                   burst 5
                 }
-
                 # disable the zerossl issuer
                 cert_issuer acme
+              '' + lib.strings.optionalString dynamodbStorage ''
+                # store certificates in DynamoDB
+                storage dynamodb {$DROPKICK_CERTIFICATE_TABLE}
               '';
               # Set up on_demand_tls.ask responder.
               virtualHosts."http://localhost:478".extraConfig = ''
@@ -148,6 +150,37 @@
                 respond 404
               '';
             };
+
+            # Create a service to populate /run/dropkick-caddy.env.
+            systemd.services.dropkick-caddy-env = lib.mkIf dynamodbStorage {
+              wantedBy = [ "multi-user.target" ];
+              after = [ "network-online.target" ];
+              wants = [ "network-online.target" ];
+              before = [ "caddy.service" ];
+
+              script = ''
+                set -euo pipefail
+
+                curl_retry() {
+                  ${pkgs.curl}/bin/curl --silent --show-error \
+                    --retry 10 --retry-delay 1 --fail --connect-timeout 1 "$@"
+                }
+                token=$(curl_retry -X PUT -H "X-aws-ec2-metadata-token-ttl-seconds: 60" \
+                  http://169.254.169.254/latest/api/token)
+                metadata() {
+                  curl_retry -H "X-aws-ec2-metadata-token: $token" \
+                    "http://169.254.169.254/latest/meta-data/$1" | head -n 1
+                }
+                echo "AWS_REGION=$(metadata placement/region)" >/run/dropkick-caddy.env
+                echo "DROPKICK_CERTIFICATE_TABLE=$(metadata tags/instance/dropkick:certificate-table)" >>/run/dropkick-caddy.env
+              '';
+
+              serviceConfig = {
+                Type = "oneshot";
+                RemainAfterExit = true;
+              };
+            };
+            systemd.services.caddy.serviceConfig.EnvironmentFile = lib.mkIf dynamodbStorage "/run/dropkick-caddy.env";
 
             # The firewall is enabled by default. Enabling SSH automatically allows port 22 through the
             # firewall, but enabling Caddy does not allow any ports.
