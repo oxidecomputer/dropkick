@@ -10,7 +10,7 @@ cargo install --locked --git https://github.com/oxidecomputer/dropkick
 
 ## Building images
 
-Supposing you have a project named `beachball` located in `~/git/beachball`, and you're planning to host it at `https://beachball.example`. Building an image might be as simple as:
+Supposing you have a project named `beachball` located in `~/git/beachball`, and you're planning to host it at `https://beachball.example` (you'll set up DNS after your first deployment). Building an image might be as simple as:
 
 ```bash
 dropkick build --hostname beachball.example ~/git/beachball output.img
