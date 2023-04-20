@@ -48,7 +48,7 @@ Use the dropkick construct in your stack by editing `lib/beachball-cdk-stack.ts`
 ```
 
 > **Note**
-> If you want SSH access to your instance, you will need to run ``
+> If you want SSH access to your instance, you will need to run `dropkick create-ec2-image` with `--allow-login`, and set `sshKeyName` in the DropkickInstance properties object to the name of an SSH key added to EC2 (either with [ec2.CfnKeyPair](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.CfnKeyPair.html) or otherwise).
 
 ## First deployment
 
