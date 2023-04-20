@@ -10,6 +10,9 @@ Get some AWS credentials, then run `dropkick create-ec2-image`:
 dropkick create-ec2-image --hostname beachball.example ~/git/beachball
 ```
 
+> **Note**
+> You may need to export `AWS_DEFAULT_REGION`.
+
 If all goes well, you'll get an EC2 image ID (e.g. `ami-0987654321example`). You'll use that in a future step.
 
 ## Setting up your project
