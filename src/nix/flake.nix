@@ -4,12 +4,11 @@
 
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
     rust-overlay.url = "github:oxalica/rust-overlay";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
-    crane.url = "github:ipetkov/crane/v0.12.0";
+    crane.url = "github:ipetkov/crane/v0.15.1";
     crane.inputs.nixpkgs.follows = "nixpkgs";
-    crane.inputs.rust-overlay.follows = "rust-overlay";
     nixie-tubes.url = "github:oxidecomputer/nixie-tubes";
   };
 

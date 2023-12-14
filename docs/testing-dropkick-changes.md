@@ -1,6 +1,16 @@
+
+## Things you might want to update as general maintenance:
+
+- `flake.nix` inputs
+    - re-run `nix flake update / nix flake lock`
+- caddy/DynamoDB
+    - See `src/nix/caddy/default.nix` for instructions
+- dropkick rust dependencies
+
+## Testing Changes
+
 We'll be testing with the `beachball` project in the `examples/` repo of this
 project.
-
 
 Install dropkick from your local repo:
 
@@ -8,7 +18,7 @@ Install dropkick from your local repo:
 cargo install --locked --path $DROPKICK_REPO
 ```
 
-## If you need to recreate the CDK stack
+### If you need to recreate the CDK stack
 
 Built/upload the ec2 image for the example project. You don't need to specify port because that's in the example project's cargo toml:
 
@@ -92,7 +102,7 @@ ID, so you can be sure that the changes you deployed actually exist:
 ```
 
 
-## If you don't need to recreate the CDK stack
+### If you don't need to recreate the CDK stack
 
 ```bash
 AWS_DEFAULT_REGION=us-east-2 dropkick deploy-ec2-image --hostname 'beachball.iliana.0xeng.dev' $DROPKICK_REPO/examples/beachball BeachballStack

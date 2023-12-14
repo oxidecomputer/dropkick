@@ -2,3 +2,4 @@
 /src/nix/input.json
 /src/nix/result
 /target
+/src/nix/caddy/vendor
