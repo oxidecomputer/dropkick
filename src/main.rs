@@ -11,7 +11,8 @@ mod nix;
 mod tempdir;
 
 use anyhow::{bail, Context, Result};
-use aws_sdk_cloudformation::model::{Capability, Parameter, StackStatus};
+use aws_config::BehaviorVersion;
+use aws_sdk_cloudformation::types::{Capability, Parameter, StackStatus};
 use camino::Utf8PathBuf;
 use clap::Parser;
 use env_logger::Env;
@@ -77,7 +78,7 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Command::CreateEc2Image { build_args } => {
-            let config = aws_config::load_from_env().await;
+            let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
             let image_id = build_args.create_ec2_image(&config).await?;
             println!("{}", image_id);
             Ok(())
@@ -86,7 +87,7 @@ async fn main() -> Result<()> {
             build_args,
             stack_name,
         } => {
-            let config = aws_config::load_from_env().await;
+            let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
             let image_id = build_args.create_ec2_image(&config).await?;
             log::info!("image ID: {}", image_id);
 
@@ -119,7 +120,7 @@ async fn main() -> Result<()> {
                     .await?;
                 let status = response
                     .stacks()
-                    .and_then(<[_]>::first)
+                    .first()
                     .context("no stacks returned in cloudformation:DescribeStacks")?
                     .stack_status()
                     .context("no stack status")?;

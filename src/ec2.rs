@@ -5,7 +5,7 @@
 use crate::build::Args;
 use anyhow::{Context, Result};
 use aws_config::SdkConfig;
-use aws_sdk_ec2::model::{
+use aws_sdk_ec2::types::{
     ArchitectureValues, BlockDeviceMapping, BootModeValues, EbsBlockDevice, Filter,
     ImdsSupportValues, Tag, VolumeType,
 };
@@ -35,7 +35,8 @@ impl Args {
             .send()
             .await?
             .images()
-            .and_then(|images| images.first()?.image_id())
+            .first()
+            .and_then(|image| image.image_id())
         {
             log::info!("image already registered");
             return Ok(image_id.into());
