@@ -25,13 +25,13 @@ Built/upload the ec2 image for the example project. You don't need to specify po
 **bash**:
 
 ```bash
-export BEACHBALL_AMI_ID="$(AWS_DEFAULT_REGION=us-east-2 dropkick create-ec2-image --hostname 'ball.iliana.0xeng.dev' $DROPKICK_REPO/examples/beachball | tail -n1)"
+export BEACHBALL_AMI_ID="$(AWS_DEFAULT_REGION=us-east-2 dropkick create-ec2-image --hostname 'ball.iliana.0xeng.dev' --cert-storage dynamodb $DROPKICK_REPO/examples/beachball | tail -n1)"
 ```
 
 or **fish**:
 
 ```fish
-set -x BEACHBALL_AMI_ID (AWS_DEFAULT_REGION=us-east-2 dropkick create-ec2-image --hostname 'ball.iliana.0xeng.dev' $DROPKICK_REPO/examples/beachball | tail -n1)
+set -x BEACHBALL_AMI_ID (AWS_DEFAULT_REGION=us-east-2 dropkick create-ec2-image --hostname 'ball.iliana.0xeng.dev' --cert-storage dynamodb $DROPKICK_REPO/examples/beachball | tail -n1)
 ```
 
 If you get one of these errors:
@@ -105,7 +105,7 @@ ID, so you can be sure that the changes you deployed actually exist:
 ### If you don't need to recreate the CDK stack
 
 ```bash
-AWS_DEFAULT_REGION=us-east-2 dropkick deploy-ec2-image --hostname 'ball.iliana.0xeng.dev' $DROPKICK_REPO/examples/beachball BeachballStack
+AWS_DEFAULT_REGION=us-east-2 dropkick deploy-ec2-image --hostname 'ball.iliana.0xeng.dev' --cert-storage dynamodb $DROPKICK_REPO/examples/beachball BeachballStack
 ```
 
 If you get one of these errors:
