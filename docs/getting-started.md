@@ -2,10 +2,10 @@
 
 Currently to build images you need an x86_64 Linux machine (a VM is fine) with [the Nix package manager](https://nixos.org/download.html) installed.
 
-Once you have this, install dropkick:
+Once you have this, install or update dropkick:
 
 ```bash
-cargo install --locked --git https://github.com/oxidecomputer/dropkick
+cargo install --force --locked --git https://github.com/oxidecomputer/dropkick
 ```
 
 ## Building images

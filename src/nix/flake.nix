@@ -4,12 +4,11 @@
 
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
     rust-overlay.url = "github:oxalica/rust-overlay";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
-    crane.url = "github:ipetkov/crane/v0.12.0";
+    crane.url = "github:ipetkov/crane/v0.16.1";
     crane.inputs.nixpkgs.follows = "nixpkgs";
-    crane.inputs.rust-overlay.follows = "rust-overlay";
     nixie-tubes.url = "github:oxidecomputer/nixie-tubes";
   };
 
@@ -283,9 +282,9 @@
 
             services.openssh = lib.mkIf dropkickInput.allowLogin {
               enable = true;
-              kbdInteractiveAuthentication = false;
-              passwordAuthentication = false;
-              permitRootLogin = "prohibit-password";
+              settings.KbdInteractiveAuthentication = false;
+              settings.PasswordAuthentication = false;
+              settings.PermitRootLogin = "prohibit-password";
               hostKeys = [
                 { path = "/persist/etc/ssh/ssh_host_rsa_key"; type = "rsa"; bits = 4096; }
                 { path = "/persist/etc/ssh/ssh_host_ed25519_key"; type = "ed25519"; }
