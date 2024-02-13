@@ -1,5 +1,7 @@
 # The reason we maintain our own recipe of caddy is to have the DynamoDB
 # plugin, something upstream nixpkgs caddy doesn't have.
+#
+# See also https://github.com/NixOS/nixpkgs/pull/259275
 { buildGoModule, fetchFromGitHub }:
 let
   # To update caddy:
@@ -33,7 +35,7 @@ buildGoModule {
   pname = "caddy";
   inherit version;
   src = ./.;
-  vendorHash = "sha256-3tAnyz+v/4BCUcnYUvw/vUNDahPm6pKuhQvvGRw/2jY=";
+  vendorHash = "sha256-4VNA1yJCVZdeHCgCt1gtQHJPNN3tZs/kZ8hin29dCCk=";
 
   postInstall = ''
     install -Dm644 ${dist}/init/caddy.service -t $out/lib/systemd/system
