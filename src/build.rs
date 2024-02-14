@@ -35,6 +35,10 @@ pub(crate) struct Args {
     #[clap(long)]
     pub(crate) test_cert: bool,
 
+    /// Oxide only: Oxide Project
+    #[clap(long)]
+    pub(crate) oxide_project: Option<oxide::types::NameOrId>,
+
     /// Path to package directory (containing Cargo.toml)
     #[clap(default_value = ".")]
     #[serde(skip_serializing)]
