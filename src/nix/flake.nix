@@ -292,7 +292,9 @@
             };
             services.oxide-ssh-init.enable = dropkickInput.allowLogin;
             environment.systemPackages = lib.mkIf dropkickInput.allowLogin
-              (with pkgs; [ htop tree vim ] ++ nixpkgsInput);
+              (with pkgs; [ htop tree vim amazon-ssm-agent ] ++ nixpkgsInput);
+
+            services.amazon-ssm-agent.enable = dropkickInput.allowLogin;
 
             # things for booting in EC2 and/or oxide
             # see also https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/virtualisation/amazon-image.nix
