@@ -8,6 +8,7 @@
 mod build;
 mod ec2;
 mod nix;
+mod oxide;
 mod tempdir;
 
 use anyhow::{bail, Context, Result};
@@ -32,6 +33,16 @@ enum Command {
 
     /// Create image for use in EC2
     CreateEc2Image {
+        #[clap(flatten)]
+        build_args: crate::build::Args,
+    },
+    /// Create image for use in Oxide
+    CreateOxideImage {
+        #[clap(flatten)]
+        build_args: crate::build::Args,
+    },
+    /// Deploy an image to Oxide
+    DeployOxideImage {
         #[clap(flatten)]
         build_args: crate::build::Args,
     },
@@ -81,6 +92,17 @@ async fn main() -> Result<()> {
             let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
             let image_id = build_args.create_ec2_image(&config).await?;
             println!("{}", image_id);
+            Ok(())
+        }
+        Command::CreateOxideImage { build_args } => {
+            let id = build_args.create_oxide_image(false).await?;
+            println!("{}", id);
+            Ok(())
+        }
+        Command::DeployOxideImage { build_args } => {
+            let id = build_args.create_oxide_image(true).await?;
+            println!("image ID: {}", id);
+
             Ok(())
         }
         Command::DeployEc2Image {
