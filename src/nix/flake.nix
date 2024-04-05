@@ -50,6 +50,26 @@
 
             nativeBuildInputs = nixpkgsInput;
             buildInputs = nixpkgsInput;
+
+            preConfigurePhases = [
+              "setTokioMinCoreCount"
+            ];
+
+            # This is to work around an issue we're seeing with coldsnap being
+            # unable to upload images when running in GitHub Actions. The
+            # number of Tokio worker threads defaults to the number of cores on
+            # the system, and in GitHub Actions for private repos, that's only
+            # 2. @iliana suspected this number to be too low, and SCIENCE has
+            # shown that setting TOKIO_WORKER_THREADS to a higher value works!
+            setTokioMinCoreCount = ''
+              logical_cpu_count=$(grep -c ^processor /proc/cpuinfo)
+
+              min_thread_count=4
+
+              if [ "${logical_cpu_count}" -lt "${min_thread_count}" ]; then
+                export TOKIO_WORKER_THREADS=${min_thread_count}
+              fi
+            '';
           };
 
         caddy = pkgs.callPackage ./caddy { };
