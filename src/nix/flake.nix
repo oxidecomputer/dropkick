@@ -20,6 +20,8 @@
       dropkickInput = pkgs.lib.importJSON ./input.json;
       dynamodbStorage = dropkickInput.certStorage == "Dynamodb";
       nixpkgsInput = map (s: builtins.getAttr s pkgs) dropkickInput.nixpkgs;
+
+      interactiveShell = dropkickInput.allowSsh || dropkickInput.allowAwsSsm;
     in
     rec {
 
@@ -280,7 +282,7 @@
             # /persist/etc is created elsewhere.
             environment.etc."machine-id".source = "/persist/machine-id";
 
-            services.openssh = lib.mkIf dropkickInput.allowLogin {
+            services.openssh = lib.mkIf dropkickInput.allowSsh {
               enable = true;
               settings.KbdInteractiveAuthentication = false;
               settings.PasswordAuthentication = false;
@@ -290,8 +292,11 @@
                 { path = "/persist/etc/ssh/ssh_host_ed25519_key"; type = "ed25519"; }
               ];
             };
-            services.oxide-ssh-init.enable = dropkickInput.allowLogin;
-            environment.systemPackages = lib.mkIf dropkickInput.allowLogin
+            services.oxide-ssh-init.enable = dropkickInput.allowSsh;
+
+            services.amazon-ssm-agent.enable = dropkickInput.allowAwsSsm;
+
+            environment.systemPackages = lib.mkIf interactiveShell
               (with pkgs; [ htop tree vim ] ++ nixpkgsInput);
 
             # things for booting in EC2 and/or oxide
@@ -309,11 +314,11 @@
             systemd.services."serial-getty@ttyS0".enable = true;
 
             # https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/profiles/minimal.nix
-            documentation.enable = dropkickInput.allowLogin;
+            documentation.enable = interactiveShell;
             documentation.doc.enable = false;
             documentation.info.enable = false;
-            documentation.man.enable = dropkickInput.allowLogin;
-            documentation.nixos.enable = dropkickInput.allowLogin;
+            documentation.man.enable = interactiveShell;
+            documentation.nixos.enable = interactiveShell;
             fonts.fontconfig.enable = false;
             programs.command-not-found.enable = false;
             programs.less.lessopen = null;

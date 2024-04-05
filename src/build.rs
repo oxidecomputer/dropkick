@@ -15,7 +15,11 @@ use std::io::{Read, Seek, SeekFrom, Write};
 pub(crate) struct Args {
     /// Allow SSH login (via SSH keys fetched by cloud-init)
     #[clap(long)]
-    pub(crate) allow_login: bool,
+    pub(crate) allow_ssh: bool,
+
+    /// Allow AWS Systems Manager (SSM)
+    #[clap(long)]
+    pub(crate) allow_aws_ssm: bool,
 
     /// Environment for the dropshot service (see EnvironmentFile in systemd.exec(5))
     #[clap(long)]
