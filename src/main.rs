@@ -89,7 +89,7 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Command::CreateEc2Image { build_args } => {
-            let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
+            let config = aws_config::load_defaults(BehaviorVersion::v2024_03_28()).await;
             let image_id = build_args.create_ec2_image(&config).await?;
             println!("{}", image_id);
             Ok(())
@@ -109,7 +109,7 @@ async fn main() -> Result<()> {
             build_args,
             stack_name,
         } => {
-            let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
+            let config = aws_config::load_defaults(BehaviorVersion::v2024_03_28()).await;
             let image_id = build_args.create_ec2_image(&config).await?;
             log::info!("image ID: {}", image_id);
 
