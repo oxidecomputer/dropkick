@@ -17,7 +17,7 @@ base64 = "0.21.7"
 camino = "1.1.6"
 cargo_metadata = "0.18.1"
 clap = { version = "4.4.11", features = ["derive"] }
-coldsnap = { version = "0.6.1" }
+coldsnap = "0.6.1"
 env_logger = "0.11.2"
 fs-err = "2.11.0"
 indicatif = "0.17.7"
