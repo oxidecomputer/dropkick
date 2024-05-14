@@ -148,7 +148,7 @@ impl Args {
         Ok(serde_json::to_string(&self.into_nixos_builder()?)?)
     }
 
-    pub(crate) fn create_iso(self) -> Result<(std::path::PathBuf, Metadata)> {
+    pub(crate) fn create_iso(self) -> Result<(tempfile::TempPath, Metadata)> {
         let output_path_arg = self.output_path.clone();
         let (mut file, temp_path) = if let Some(output_path) = &output_path_arg {
             NamedTempFile::new_in(output_path.parent().context("output path has no parent")?)?
@@ -168,15 +168,11 @@ impl Args {
         let len = file.stream_position()?;
         file.set_len(len)?;
 
-        let output_path = if let Some(output_path) = output_path_arg {
-            temp_path.persist(&output_path)?;
+        if let Some(output_path) = output_path_arg {
+            std::fs::copy(&temp_path, output_path)?;
+        }
 
-            output_path.into_std_path_buf()
-        } else {
-            temp_path.to_path_buf()
-        };
-
-        Ok((output_path, metadata))
+        Ok((temp_path, metadata))
     }
 }
 
