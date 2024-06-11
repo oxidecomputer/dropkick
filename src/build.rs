@@ -9,6 +9,7 @@ use cargo_metadata::MetadataCommand;
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Seek, SeekFrom, Write};
+use tempfile::NamedTempFile;
 
 #[derive(Debug, Parser, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -47,6 +48,10 @@ pub(crate) struct Args {
     #[clap(default_value = ".")]
     #[serde(skip_serializing)]
     pub(crate) package_dir: Utf8PathBuf,
+
+    /// Output path for built image (if not specified, the output is deleted)
+    #[clap(long)]
+    pub(crate) output_path: Option<Utf8PathBuf>,
 
     #[clap(flatten)]
     #[serde(flatten)]
@@ -147,19 +152,31 @@ impl Args {
         Ok(serde_json::to_string(&self.into_nixos_builder()?)?)
     }
 
-    pub(crate) fn create_iso(self, writer: &mut std::fs::File) -> Result<Metadata> {
+    pub(crate) fn create_iso(self) -> Result<(tempfile::TempPath, Metadata)> {
+        let output_path_arg = self.output_path.clone();
+        let (mut file, temp_path) = if let Some(output_path) = &output_path_arg {
+            NamedTempFile::new_in(output_path.parent().context("output path has no parent")?)?
+                .into_parts()
+        } else {
+            NamedTempFile::new()?.into_parts()
+        };
+
         let nixos_builder = self.into_nixos_builder()?;
-        let metadata = nixos_builder.build(writer)?;
+        let metadata = nixos_builder.build(&mut file)?;
 
         // append an empty ext4 filesystem to the image (see notes about /persist in config.nix)
         sparse_copy(
             &mut zstd::Decoder::new(include_bytes!("fs/ext4.zst").as_slice())?,
-            writer,
+            &mut file,
         )?;
-        let len = writer.stream_position()?;
-        writer.set_len(len)?;
+        let len = file.stream_position()?;
+        file.set_len(len)?;
 
-        Ok(metadata)
+        if let Some(output_path) = output_path_arg {
+            std::fs::copy(&temp_path, output_path)?;
+        }
+
+        Ok((temp_path, metadata))
     }
 }
 

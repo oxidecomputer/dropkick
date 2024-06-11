@@ -14,11 +14,9 @@ mod tempdir;
 use anyhow::{bail, Context, Result};
 use aws_config::BehaviorVersion;
 use aws_sdk_cloudformation::types::{Capability, Parameter, StackStatus};
-use camino::Utf8PathBuf;
 use clap::Parser;
 use env_logger::Env;
 use std::time::Duration;
-use tempfile::NamedTempFile;
 
 #[derive(Debug, Parser)]
 enum Command {
@@ -26,9 +24,6 @@ enum Command {
     Build {
         #[clap(flatten)]
         build_args: crate::build::Args,
-
-        /// Output path for built image (if not specified, the output is deleted)
-        output_path: Option<Utf8PathBuf>,
     },
 
     /// Create image for use in EC2
@@ -69,23 +64,9 @@ async fn main() -> Result<()> {
     env_logger::Builder::from_env(Env::default().default_filter_or("dropkick=info")).init();
 
     match Command::parse() {
-        Command::Build {
-            build_args,
-            output_path,
-        } => {
-            let (mut file, persist) = if let Some(output_path) = &output_path {
-                let (file, temp_path) = NamedTempFile::new_in(
-                    output_path.parent().context("output path has no parent")?,
-                )?
-                .into_parts();
-                (file, Some((temp_path, output_path)))
-            } else {
-                (tempfile::tempfile()?, None)
-            };
-            build_args.create_iso(&mut file)?;
-            if let Some((temp_path, output_path)) = persist {
-                temp_path.persist(output_path)?;
-            }
+        Command::Build { build_args } => {
+            build_args.create_iso()?;
+
             Ok(())
         }
         Command::CreateEc2Image { build_args } => {
