@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::tempdir::Utf8TempDir;
-use anyhow::{ensure, Context, Result};
+use anyhow::{bail, ensure, Context, Result};
 use camino::Utf8PathBuf;
 use cargo_metadata::Package;
 use fs_err::File;
@@ -122,10 +122,26 @@ impl NixosBuilder {
         let result_path = result_path
             .read_link_utf8()
             .context("failed to read result link")?;
-        std::io::copy(
-            &mut File::open(result_path.join("iso").join("nixos.iso"))?,
-            writer,
-        )?;
+
+        // Starting from NixOS 25.05, the file name of ISO images is not predictable anymore. There
+        // must be only one image in the result directory though, so look for it.
+        let iso_dir = result_path.join("iso");
+        let mut iso_images = Vec::new();
+        for entry in iso_dir.read_dir()? {
+            let path = entry?.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("iso") {
+                iso_images.push(path);
+            }
+        }
+        let iso_image = if iso_images.is_empty() {
+            bail!("no iso images in {iso_dir}");
+        } else if iso_images.len() > 1 {
+            bail!("too many iso images in {iso_dir}");
+        } else {
+            iso_images.pop().unwrap()
+        };
+
+        std::io::copy(&mut File::open(iso_image)?, writer)?;
 
         let mut flake_revs = HashMap::new();
         let flake_lock: FlakeLock =
