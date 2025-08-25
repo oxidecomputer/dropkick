@@ -52,8 +52,6 @@
             nativeBuildInputs = nixpkgsInput;
             buildInputs = nixpkgsInput;
           };
-
-        caddy = pkgs.callPackage ./caddy { };
       };
 
       nixosConfigurations.dropkick = nixpkgs.lib.nixosSystem {
@@ -111,7 +109,12 @@
 
             services.caddy = {
               enable = true;
-              package = packages."${system}".caddy;
+              package = pkgs.caddy.withPlugins {
+                plugins = ["github.com/silinternational/certmagic-storage-dynamodb/v3@v3.1.1"];
+                # If you get a hash mismatch, or to update the plugins, replace this with an empty
+                # string, and do a build: nix will show you the correct hash.
+                hash = "sha256-aQ20My8nK1n66kWEeRWWzmwjXJSiIL7ytAOOHXalmD8=";
+              };
 
               email = "lets-encrypt@oxidecomputer.com";
               acmeCA = lib.mkIf dropkickInput.testCert "https://acme-staging-v02.api.letsencrypt.org/directory";

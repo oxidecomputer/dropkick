@@ -23,13 +23,7 @@ macro_rules! include_all {
     };
 }
 
-const NIX_ENV: &[(&str, &[u8])] = include_all![
-    "caddy/default.nix",
-    "caddy/go.mod",
-    "caddy/go.sum",
-    "caddy/main.go",
-    "flake.nix",
-];
+const NIX_ENV: &[(&str, &[u8])] = include_all!["flake.nix"];
 
 // Flake inputs that we always want to keep up-to-date. We do this by removing their entries from
 // flake.lock before writing it back out to a file.
