@@ -24,22 +24,22 @@
   },
   "homepage": "https://github.com/oxidecomputer/dropkick#readme",
   "dependencies": {
-    "aws-cdk-lib": "^2.66.1",
-    "constructs": "^10.1.263"
+    "aws-cdk-lib": "^2.212.0",
+    "constructs": "^10.4.2"
   },
   "peerDependencies": {
-    "esbuild": "^0.17.10"
+    "esbuild": "^0.17.19"
   },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.111",
-    "@types/node": "^18.14.2",
-    "@typescript-eslint/eslint-plugin": "^5.54.0",
-    "@typescript-eslint/parser": "^5.54.0",
-    "eslint": "^8.35.0",
-    "eslint-config-prettier": "^8.6.0",
-    "eslint-plugin-import": "^2.27.5",
-    "prettier": "^2.8.4",
+    "@types/aws-lambda": "^8.10.152",
+    "@types/node": "^18.19.123",
+    "@typescript-eslint/eslint-plugin": "^5.62.0",
+    "@typescript-eslint/parser": "^5.62.0",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^8.10.2",
+    "eslint-plugin-import": "^2.32.0",
+    "prettier": "^2.8.8",
     "typescript": "~4.9.5",
-    "undici": "^5.20.0"
+    "undici": "^5.29.0"
   }
 }
