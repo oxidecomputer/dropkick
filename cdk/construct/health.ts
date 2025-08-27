@@ -18,7 +18,7 @@ export class HealthCheck extends Resource {
 
     const handler = new nodejs.NodejsFunction(this, "handler", {
       // Node 18.x or higher is required for fetch().
-      runtime: lambda.Runtime.NODEJS_18_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
 
       // The function stops trying to ping after 10 minutes; this timeout needs
       // to be higher so we have time to post a failed message if we reach that
