@@ -134,8 +134,6 @@
               globalConfig = ''
                 on_demand_tls {
                   ask http://localhost:478/check
-                  interval 2m
-                  burst 5
                 }
                 # disable the zerossl issuer
                 cert_issuer acme
