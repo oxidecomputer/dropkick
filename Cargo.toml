@@ -17,14 +17,14 @@ base64 = "0.21.7"
 camino = "1.1.6"
 cargo_metadata = "0.18.1"
 clap = { version = "4.4.11", features = ["derive"] }
-coldsnap = "0.6.1"
+coldsnap = "0.8"
 env_logger = "0.11.2"
 fs-err = "2.11.0"
-indicatif = "0.17.7"
+indicatif = "0.17"
 log = "0.4.20"
 serde = { version = "1.0.193", features = ["derive"] }
 serde_json = "1.0.108"
 tempfile = "3.8.1"
 tokio = { version = "1.35.0", features = ["macros", "rt-multi-thread"] }
 zstd = "0.13.0"
-oxide = { git = "https://github.com/oxidecomputer/oxide.rs.git" }
+oxide = "0.13"
