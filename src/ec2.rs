@@ -5,11 +5,12 @@
 use crate::build::Args;
 use anyhow::{Context, Result};
 use aws_config::SdkConfig;
+use aws_sdk_ebs::types::Tag;
 use aws_sdk_ec2::types::{
     ArchitectureValues, BlockDeviceMapping, BootModeValues, EbsBlockDevice, Filter,
-    ImdsSupportValues, Tag, VolumeType,
+    ImdsSupportValues, VolumeType,
 };
-use coldsnap::{SnapshotUploader, SnapshotWaiter};
+use coldsnap::{SnapshotUploader, SnapshotWaiter, UploadZeroBlocks};
 use indicatif::ProgressBar;
 use tempfile::NamedTempFile;
 
@@ -42,13 +43,33 @@ impl Args {
             return Ok(image_id.into());
         }
 
+        let mut tags = vec![
+            tag("package.name", metadata.package.name),
+            tag("package.version", metadata.package.version.to_string()),
+            tag("store_hash", metadata.store_hash),
+        ];
+        for (flake_name, metadata) in metadata.flake_revs {
+            let modified_tag = tag(
+                format!("flake.{flake_name}.last_modified").as_str(),
+                metadata.last_modified.to_string(),
+            );
+            tags.push(modified_tag);
+
+            if let Some(rev) = metadata.rev {
+                let rev_tag = tag(format!("flake.{flake_name}.rev").as_str(), rev);
+                tags.push(rev_tag);
+            }
+        }
+
         log::info!("uploading EC2 snapshot");
         let snapshot_id = SnapshotUploader::new(ebs_client)
             .upload_from_file(
                 &temp_path,
                 None,
                 Some(&image_name),
+                Some(tags),
                 Some(ProgressBar::new(0)),
+                Some(UploadZeroBlocks::Include),
             )
             .await
             .context("failed to upload snapshot")?;
@@ -90,31 +111,13 @@ impl Args {
             .image_id()
             .context("no image ID in ec2:RegisterImage response")?;
 
-        let mut tag_request = ec2_client.create_tags().resources(image_id);
-        macro_rules! tag {
-            ($key:expr, $value:expr) => {
-                tag_request = tag_request.tags(
-                    Tag::builder()
-                        .key(format!("dropkick:{}", $key))
-                        .value($value)
-                        .build(),
-                )
-            };
-        }
-        tag!("package.name", metadata.package.name);
-        tag!("package.version", metadata.package.version.to_string());
-        tag!("store_hash", metadata.store_hash);
-        for (flake_name, metadata) in metadata.flake_revs {
-            tag!(
-                format!("flake.{}.last_modified", flake_name),
-                metadata.last_modified.to_string()
-            );
-            if let Some(rev) = metadata.rev {
-                tag!(format!("flake.{}.rev", flake_name), rev);
-            }
-        }
-        tag_request.send().await?;
-
         Ok(image_id.into())
     }
+}
+
+fn tag(key: &str, value: String) -> Tag {
+    Tag::builder()
+        .key(format!("dropkick:{key}"))
+        .value(value)
+        .build()
 }

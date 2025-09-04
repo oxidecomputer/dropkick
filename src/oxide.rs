@@ -6,8 +6,6 @@ use crate::build::Args;
 use anyhow::{anyhow, Result};
 use base64::Engine;
 use indicatif::{ProgressBar, ProgressStyle};
-use oxide::config::Config;
-use oxide::context::Context;
 use oxide::types::ByteCount;
 use oxide::types::DiskCreate;
 use oxide::types::DiskSource;
@@ -18,6 +16,7 @@ use oxide::types::ImageSource;
 use oxide::types::ImportBlocksBulkWrite;
 use oxide::types::InstanceDiskAttachment;
 use oxide::types::NameOrId;
+use oxide::Client;
 use oxide::ClientDisksExt;
 use oxide::ClientImagesExt;
 use oxide::ClientInstancesExt;
@@ -49,11 +48,10 @@ impl Args {
         image_name.truncate(63);
         log::info!("image name: {}", image_name);
 
-        let config = Config::default();
-        let context = Context::new(config).unwrap();
+        let client =
+            Client::new_authenticated().expect("unable to create an authenticated Oxide client");
 
-        if let Some(image) = context
-            .client()?
+        if let Some(image) = client
             .image_list()
             .project(&project)
             .send()
@@ -73,8 +71,7 @@ impl Args {
 
         let disk_size = get_disk_size(&temp_path.to_path_buf())?;
 
-        context
-            .client()?
+        client
             .disk_create()
             .project(&project)
             .body(DiskCreate {
@@ -89,8 +86,7 @@ impl Args {
             .await?;
 
         // Start the upload
-        context
-            .client()?
+        client
             .disk_bulk_write_import_start()
             .project(project.clone())
             .disk(disk_name.clone())
@@ -120,8 +116,7 @@ impl Args {
                 let base64_encoded_data =
                     base64::engine::general_purpose::STANDARD.encode(&chunk[0..n]);
 
-                context
-                    .client()?
+                client
                     .disk_bulk_write_import()
                     .disk(disk_name.clone())
                     .project(project.clone())
@@ -137,8 +132,7 @@ impl Args {
             pb.inc(CHUNK_SIZE);
         }
 
-        context
-            .client()?
+        client
             .disk_bulk_write_import_stop()
             .project(project.clone())
             .disk(disk_name.clone())
@@ -147,8 +141,7 @@ impl Args {
 
         let snapshot_name = format!("{}-snap", &image_name);
 
-        context
-            .client()?
+        client
             .disk_finalize_import()
             .project(project.clone())
             .disk(disk_name.clone())
@@ -159,16 +152,14 @@ impl Args {
             .await?;
 
         // Go from snapshot -> image
-        let snapshot = context
-            .client()?
+        let snapshot = client
             .snapshot_view()
             .project(project.clone())
             .snapshot(NameOrId::Name(snapshot_name.clone().try_into()?))
             .send()
             .await?;
 
-        context
-            .client()?
+        client
             .image_create()
             .project(project.clone())
             .body(ImageCreate {
@@ -181,12 +172,7 @@ impl Args {
             .send()
             .await?;
 
-        let imgs = context
-            .client()?
-            .image_list()
-            .project(&project)
-            .send()
-            .await?;
+        let imgs = client.image_list().project(&project).send().await?;
 
         let img = imgs.items.iter().find(|x| *x.name == image_name).unwrap();
 
@@ -197,8 +183,7 @@ impl Args {
         let mut instance_disk_name = format!("{}-instance-disk", &image_name);
         instance_disk_name.truncate(63);
 
-        let instance = context
-            .client()?
+        let instance = client
             .instance_create()
             .project(&project)
             .body_map(|body| {
