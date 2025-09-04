@@ -4,11 +4,10 @@
 
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     rust-overlay.url = "github:oxalica/rust-overlay";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
-    crane.url = "github:ipetkov/crane/v0.16.1";
-    crane.inputs.nixpkgs.follows = "nixpkgs";
+    crane.url = "github:ipetkov/crane/v0.21.0";
     nixie-tubes.url = "github:oxidecomputer/nixie-tubes";
   };
 
@@ -53,8 +52,6 @@
             nativeBuildInputs = nixpkgsInput;
             buildInputs = nixpkgsInput;
           };
-
-        caddy = pkgs.callPackage ./caddy { };
       };
 
       nixosConfigurations.dropkick = nixpkgs.lib.nixosSystem {
@@ -112,7 +109,12 @@
 
             services.caddy = {
               enable = true;
-              package = packages."${system}".caddy;
+              package = pkgs.caddy.withPlugins {
+                plugins = ["github.com/silinternational/certmagic-storage-dynamodb/v3@v3.1.1"];
+                # If you get a hash mismatch, or to update the plugins, replace this with an empty
+                # string, and do a build: nix will show you the correct hash.
+                hash = "sha256-aQ20My8nK1n66kWEeRWWzmwjXJSiIL7ytAOOHXalmD8=";
+              };
 
               email = "lets-encrypt@oxidecomputer.com";
               acmeCA = lib.mkIf dropkickInput.testCert "https://acme-staging-v02.api.letsencrypt.org/directory";
@@ -132,8 +134,6 @@
               globalConfig = ''
                 on_demand_tls {
                   ask http://localhost:478/check
-                  interval 2m
-                  burst 5
                 }
                 # disable the zerossl issuer
                 cert_issuer acme
