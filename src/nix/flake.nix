@@ -113,7 +113,7 @@
                 plugins = ["github.com/silinternational/certmagic-storage-dynamodb/v3@v3.1.1"];
                 # If you get a hash mismatch, or to update the plugins, replace this with an empty
                 # string, and do a build: nix will show you the correct hash.
-                hash = "sha256-aQ20My8nK1n66kWEeRWWzmwjXJSiIL7ytAOOHXalmD8=";
+                hash = "sha256-6gWNagoHmRDrf7o8L+AKFYtKa1I7LYOE1MLDJkurJAM=";
               };
 
               email = "lets-encrypt@oxidecomputer.com";
