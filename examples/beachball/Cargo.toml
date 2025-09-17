@@ -10,7 +10,7 @@ dropshot = "0.9.0"
 reqwest = "0.11.22"
 schemars = "0.8.16"
 serde = { version = "1.0.193", features = ["derive"] }
-tokio = { version = "1.35.0", features = ["full"] }
+tokio = { version = "1.38.2", features = ["full"] }
 
 [package.metadata.dropkick]
 nixpkgs = [ "pkg-config", "openssl" ]
