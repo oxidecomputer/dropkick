@@ -24,7 +24,7 @@ indicatif = "0.17"
 log = "0.4.20"
 serde = { version = "1.0.193", features = ["derive"] }
 serde_json = "1.0.108"
-tempfile = "3.8.1"
+tempfile = "3.22.0"
 tokio = { version = "1.35.0", features = ["macros", "rt-multi-thread"] }
 zstd = "0.13.0"
 oxide = "0.13"
