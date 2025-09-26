@@ -15,7 +15,7 @@ aws-sdk-ebs = "1.6.0"
 aws-sdk-ec2 = "1.8.0"
 base64 = "0.21.7"
 camino = "1.1.6"
-cargo_metadata = "0.18.1"
+cargo_metadata = "0.22.0"
 clap = { version = "4.4.11", features = ["derive"] }
 coldsnap = "0.8"
 env_logger = "0.11.2"
