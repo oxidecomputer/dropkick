@@ -9,7 +9,7 @@ debug = 1
 
 [dependencies]
 anyhow = { version = "1.0.75", features = ["backtrace"] }
-aws-config = "1.0.3"
+aws-config = "1.8.6"
 aws-sdk-cloudformation = "1.7.0"
 aws-sdk-ebs = "1.6.0"
 aws-sdk-ec2 = "1.8.0"
