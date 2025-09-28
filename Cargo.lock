@@ -973,7 +973,7 @@ dependencies = [
  "aws-sdk-cloudformation",
  "aws-sdk-ebs",
  "aws-sdk-ec2",
- "base64 0.21.7",
+ "base64 0.22.1",
  "camino",
  "cargo_metadata",
  "clap",
