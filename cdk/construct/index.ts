@@ -78,7 +78,7 @@ export class DropkickInstance extends Construct {
     // Fish the VPCGatewayAttachment out of the Vpc construct, so we can add
     // dependencies on it.
     const vpcgw = this.vpc.node.findChild(
-      "VPCGW"
+      "VPCGW",
     ) as ec2.CfnVPCGatewayAttachment;
 
     // The Vpc construct carves up all of the available IPv4 space across its
@@ -97,12 +97,12 @@ export class DropkickInstance extends Construct {
       // I want to know what was going through the mind of the engineer who
       // decided this parameter should be the suffix length of the CIDR and not
       // the prefix length.
-      (32 - 20).toString()
+      (32 - 20).toString(),
     );
     allSubnets.forEach((subnet, i) => {
       (subnet.node.defaultChild as ec2.CfnSubnet).cidrBlock = Fn.select(
         i,
-        v4cidrs
+        v4cidrs,
       );
     });
 
@@ -115,7 +115,7 @@ export class DropkickInstance extends Construct {
     const v6cidrs = Fn.cidr(
       Fn.select(0, this.vpc.vpcIpv6CidrBlocks),
       this.vpc.publicSubnets.length,
-      (128 - 64).toString()
+      (128 - 64).toString(),
     );
     // Add IPv6 CIDRs to each of our subnets.
     this.vpc.publicSubnets.forEach((subnet, i) => {
@@ -146,16 +146,16 @@ export class DropkickInstance extends Construct {
         vpc: this.vpc,
         allowAllOutbound: true,
         allowAllIpv6Outbound: true,
-      })
+      }),
     );
     // Allow all ICMP/ICMPv6 traffic in from the whole internet.
     this.serviceSecurityGroup.addIngressRule(
       ec2.Peer.anyIpv4(),
-      ec2.Port.allIcmp()
+      ec2.Port.allIcmp(),
     );
     this.serviceSecurityGroup.addIngressRule(
       ec2.Peer.anyIpv6(),
-      ec2.Port.allIcmpV6()
+      ec2.Port.allIcmpV6(),
     );
     [ec2.Peer.anyIpv4(), ec2.Peer.anyIpv6()].forEach((peer) => {
       // Allow tcp/22 for SSH if we are setting an SSH key name.
@@ -193,7 +193,7 @@ export class DropkickInstance extends Construct {
         subnetId: this.serviceSubnet.subnetId,
         groupSet: [this.serviceSecurityGroup.securityGroupId],
         ipv6Addresses: [{ ipv6Address: this.servicePublicIpv6 }],
-      })
+      }),
     );
 
     // The only way to add a public IPv4 address to a network interface that
@@ -230,7 +230,7 @@ export class DropkickInstance extends Construct {
         keyName: props.sshKeyName,
         securityGroup: this.serviceSecurityGroup,
         vpcSubnets: { subnets: [this.serviceSubnet] },
-      })
+      }),
     );
     this.instanceRole = this.instance.role;
 
@@ -258,7 +258,7 @@ export class DropkickInstance extends Construct {
         deviceIndex: "1",
         instanceId: this.instance.instanceId,
         networkInterfaceId: serviceInterface.ref,
-      }
+      },
     );
     attachment.node.addDependency(healthCheck);
 
