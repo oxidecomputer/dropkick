@@ -7,11 +7,6 @@ import type {
   CloudFormationCustomResourceResponse,
 } from "aws-lambda";
 
-// https://github.com/DefinitelyTyped/DefinitelyTyped/issues/60924#issuecomment-1246622957
-declare global {
-  const fetch: typeof import("undici").fetch;
-}
-
 export const handler: CloudFormationCustomResourceHandler = async (event) => {
   const success =
     event.RequestType === "Delete"
@@ -61,6 +56,6 @@ async function ping(ip: string): Promise<true> {
 
 async function timeout(): Promise<false> {
   return new Promise((resolve) =>
-    setTimeout(() => resolve(false), 10 * 60 * 1000)
+    setTimeout(() => resolve(false), 10 * 60 * 1000),
   );
 }
