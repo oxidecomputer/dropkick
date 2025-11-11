@@ -12,12 +12,10 @@ use aws_sdk_ec2::types::{
 };
 use coldsnap::{SnapshotUploader, SnapshotWaiter, UploadZeroBlocks};
 use indicatif::ProgressBar;
-use tempfile::NamedTempFile;
 
 impl Args {
     pub(crate) async fn create_ec2_image(self, config: &SdkConfig) -> Result<String> {
-        let (mut file, temp_path) = NamedTempFile::new()?.into_parts();
-        let metadata = self.create_iso(&mut file)?;
+        let (output_path, metadata) = self.create_iso()?;
         let image_name = format!(
             "{name:.len$}-{store_hash}",
             name = metadata.package.name,
@@ -64,7 +62,7 @@ impl Args {
         log::info!("uploading EC2 snapshot");
         let snapshot_id = SnapshotUploader::new(ebs_client)
             .upload_from_file(
-                &temp_path,
+                &output_path,
                 None,
                 Some(&image_name),
                 Some(tags),
