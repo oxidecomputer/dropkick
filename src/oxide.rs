@@ -25,7 +25,6 @@ use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tempfile::NamedTempFile;
 
 impl Args {
     pub(crate) async fn create_oxide_image(self, deploy: bool) -> Result<String> {
@@ -36,8 +35,7 @@ impl Args {
 
         let hostname = self.hostname.clone();
 
-        let (mut file, temp_path) = NamedTempFile::new()?.into_parts();
-        let metadata = self.create_iso(&mut file)?;
+        let (output_path, metadata) = self.create_iso()?;
         let mut image_name = format!(
             "{name:.len$}-{store_hash}",
             name = metadata.package.name,
@@ -69,7 +67,7 @@ impl Args {
         let mut disk_name = format!("{}-disk", &image_name);
         disk_name.truncate(63);
 
-        let disk_size = get_disk_size(&temp_path.to_path_buf())?;
+        let disk_size = get_disk_size(&output_path.to_path_buf())?;
 
         client
             .disk_create()
@@ -93,7 +91,7 @@ impl Args {
             .send()
             .await?;
 
-        let mut file = File::open(&temp_path)?;
+        let mut file = File::open(&output_path)?;
         let mut offset = 0;
         let file_size = file.metadata()?.len();
 
